@@ -18,19 +18,6 @@ class MyDocument extends Document {
             name="description"
             content="A web player that plays some cool MOD files randomly 🎶"
           />
-          {/* twitter */}
-          <meta name="twitter:card" content="summary" />
-          <meta name="twitter:url" content="https://coolmodfiles.com/" />
-          <meta name="twitter:title" content="CoolModFiles" />
-          <meta
-            name="twitter:description"
-            content="A web player that plays some cool MOD files randomly 🎶"
-          />
-          <meta
-            name="twitter:image"
-            content="https://coolmodfiles.com/favicon-310.png"
-          />
-
           <link rel="manifest" href="/manifest.json" />
           <meta name="theme-color" content="#fff" />
           <meta name="application-name" content="CoolModFiles" />
