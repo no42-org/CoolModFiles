@@ -5,11 +5,9 @@ import DownloadButton from "./DownloadIcon";
 import RightButton from "./RightIcon";
 import LeftButton from "./LeftIcon";
 import GithubIcon from "./GithubIcon";
-import TwitterIcon from "./TwitterIcon";
 import ShareIcon from "./ShareIcon";
 import CodeIcon from "./CodeIcon";
 import ClipIcon from "./ClipIcon";
-import TwitterOutlineIcon from "./TwitterOutlineIcon";
 import ArrowSimpleIcon from "./ArrowSimpleIcon";
 import QuestionIcon from "./QuestionIcon";
 import SupportIcon from "./SupportIcon";
@@ -27,10 +25,8 @@ export {
   LeftButton,
   GithubIcon,
   ShareIcon,
-  TwitterIcon,
   CodeIcon,
   ClipIcon,
-  TwitterOutlineIcon,
   ArrowSimpleIcon,
   QuestionIcon,
   SupportIcon,
