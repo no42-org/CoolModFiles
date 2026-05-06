@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+build
+.git
+.github
+.dockerignore
+Dockerfile
+.env*
+.DS_Store
+coverage
+.claude
+_bmad
+_bmad-output
+openspec
+README.md
