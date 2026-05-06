@@ -13,14 +13,13 @@ import {
   ShareIcon,
   CodeIcon,
   QuestionIcon,
-  TwitterOutlineIcon,
   RepeatIcon,
   LikeButton,
   PlayListButton,
   VolumeIcon,
 } from "../icons";
 import LoadingState from "./LoadingState";
-import { getRandomFromArray, showToast, SHARE_MESSAGES } from "../utils";
+import { showToast } from "../utils";
 
 import { useKeyPress } from "../hooks";
 
@@ -80,17 +79,6 @@ function PlayerBig({
   React.useEffect(() => {
     document.getElementById("repeat").classList.toggle(styles.deactive, !repeat);
   }, [repeat]);
-
-  const shareOnTwitter = () => {
-    const twUrl = new URL("https://twitter.com/intent/tweet");
-    twUrl.searchParams.append(
-      "text",
-      `${getRandomFromArray(SHARE_MESSAGES)} ${
-        process.env.DOMAIN
-      }/?trackId=${trackId}`
-    );
-    window.open(twUrl.href, "_blank").focus();
-  };
 
   const likeCurrentTrack = (favoriteModsRuntime, updateFavoriteModsRuntime) => {
     let trackIdInt = parseInt(trackId);
@@ -176,11 +164,6 @@ function PlayerBig({
                 }}
               />
               <div className={dropDownClass}>
-                <TwitterOutlineIcon
-                  height="30"
-                  width="30"
-                  onClick={() => shareOnTwitter()}
-                />
                 <CodeIcon height="30" width="30" onClick={() => copyEmbed()}/>
               </div>
             </div>
