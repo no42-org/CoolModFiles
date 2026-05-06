@@ -17,6 +17,18 @@ The programmer friends' idea, unfortunately, was beaten by [modarchive.org](http
 
 [Click here to watch the introduction video](https://www.youtube.com/watch?v=NZa5hne8Noo).
 
+## Development
+
+```bash
+cp .env.example .env   # fill in GITHUB_TOKEN and DOMAIN
+make build             # build the Next.js app
+make image             # build the Docker image
+make run               # run the image locally on :3000 (uses .env if present)
+make help              # list all targets
+```
+
+See [`.env.example`](.env.example) for the runtime environment variables.
+
 ## License
 
 GNU General Public License[\*](https://www.gnu.org/licenses/gpl.txt)

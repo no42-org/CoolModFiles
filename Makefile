@@ -5,6 +5,8 @@ SHELL := /usr/bin/env bash
 IMAGE_NAME ?= ghcr.io/no42-org/coolmodfiles
 IMAGE_TAG  ?= dev
 
+ENV_FILE_ARG := $(if $(wildcard .env),--env-file .env,)
+
 .PHONY: help install build verify image run clean
 
 help: ## Show this help
@@ -22,8 +24,8 @@ verify: install ## Verification — currently a build-only smoke check
 image: ## Build the Docker image
 	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
-run: ## Run the image locally on port 3000
-	docker run --rm -p 3000:3000 --env-file .env $(IMAGE_NAME):$(IMAGE_TAG)
+run: ## Run the image locally on port 3000 (uses .env if present)
+	docker run --rm -p 3000:3000 $(ENV_FILE_ARG) $(IMAGE_NAME):$(IMAGE_TAG)
 
 clean: ## Remove build artifacts
 	rm -rf .next node_modules
