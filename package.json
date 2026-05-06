@@ -25,7 +25,7 @@
     "dotenv": "^17.4.2",
     "file-saver": "^2.0.5",
     "jszip": "^3.8.0",
-    "markdown-to-jsx": "^6.11.4",
+    "markdown-to-jsx": "^9.7.16",
     "moment": "^2.29.4",
     "next": "^14.1.1",
     "rc-slider": "^11.1.9",
