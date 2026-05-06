@@ -3,6 +3,7 @@ import Head from "next/head";
 
 import Player from "../components/Player";
 import Footer from "../components/Footer";
+import { modArchive } from "../components/sources";
 import {
   getRandomInt,
   getRandomFromArray,
@@ -16,7 +17,7 @@ import {
 import { useKeyPress } from "../hooks";
 import { isMobile } from "react-device-detect";
 
-function Index({ trackId, backSideContent, latestId }) {
+function Index({ trackId, initialSource, backSideContent, latestId }) {
   const [start, setStart] = React.useState(false);
   const [randomMsg, setRandomMsg] = React.useState(
     getRandomFromArray(getRandomInt(0, 158) ? MESSAGES : EE_MESSAGES)
@@ -57,7 +58,7 @@ function Index({ trackId, backSideContent, latestId }) {
         </Head>
         <div id="app">
           <Player
-            sharedTrackId={trackId}
+            initialSource={initialSource}
             backSideContent={backSideContent}
             latestId={latestId}
           />
@@ -114,6 +115,7 @@ Index.getInitialProps = async ({ query }) => {
   }
   return {
     trackId: query.trackId,
+    initialSource: query.trackId ? modArchive(Number(query.trackId)) : null,
     backSideContent: json.data?.repository?.content?.text,
     latestId,
   };

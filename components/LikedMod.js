@@ -4,20 +4,14 @@ import styles from "./LikedMods.module.scss";
 function LikedMod({
   track,
   index,
-  setTrackId,
-  playMusic,
+  onPlay,
   removeFavoriteModRuntime,
 }) {
-  const playLikedMod = () => {
-    setTrackId(track.id);
-    playMusic(track.id);
-  };
-
   return (
     <li className={styles.likedMod} key={index}>
       <div
         id={`liked_mod_${track.id}`}
-        onClick={() => playLikedMod(track.id, index)}
+        onClick={() => onPlay(track)}
         title={
           `#${track.id}` +
           ` - ${track.artist || "[No Artist]"}` +

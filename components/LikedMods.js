@@ -4,8 +4,7 @@ import LikedMod from "./LikedMod";
 
 function LikedMods({
   content,
-  setTrackId,
-  playMusic,
+  onPlay,
   removeFavoriteModRuntime,
 }) {
   if (!content.length) {
@@ -21,8 +20,7 @@ function LikedMods({
           <LikedMod
             track={track}
             index={index}
-            setTrackId={setTrackId}
-            playMusic={playMusic}
+            onPlay={onPlay}
             removeFavoriteModRuntime={removeFavoriteModRuntime}
             key={index}
           />

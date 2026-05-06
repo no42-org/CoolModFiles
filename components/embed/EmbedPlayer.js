@@ -6,12 +6,17 @@ import { useInterval } from "../../hooks";
 import styles from "./EmbedPlayer.module.scss";
 import { DownloadButton, PauseButton, PlayButton } from "../../icons";
 import { getRandomInt, RANDOM_MAX } from "../../utils";
+import { modArchive, getBuffer } from "../sources";
 
-function EmbedPlayer({ sharedTrackId, sharedTitle }) {
+function EmbedPlayer({ initialSource, sharedTitle }) {
   const [isPlay, setIsPlay] = React.useState(false);
   const [start, setStart] = React.useState(false);
   const [player, setPlayer] = React.useState(null);
-  const [trackId, setTrackId] = React.useState(42);
+  const [playingSource, setPlayingSource] = React.useState(
+    () => initialSource || modArchive(42)
+  );
+  const trackId =
+    playingSource.type === "modarchive" ? playingSource.id : null;
   const [loading, setLoading] = React.useState(true);
   const [title, setTitle] = React.useState(sharedTitle);
   const [progress, setProgress] = React.useState(0);
@@ -22,7 +27,7 @@ function EmbedPlayer({ sharedTrackId, sharedTitle }) {
       setProgress(player.getPosition());
       if (player.getPosition() === 0 && player.duration() === 0) {
         setIsPlay(false);
-        playMusic(sharedTrackId);
+        playFromSource(initialSource || playingSource);
       }
     },
     isPlay ? 500 : null
@@ -31,20 +36,19 @@ function EmbedPlayer({ sharedTrackId, sharedTitle }) {
     setTitle(sharedTitle);
   }, sharedTitle);
   React.useEffect(() => {
-    if (player && sharedTrackId) playMusic(sharedTrackId);
+    if (player && initialSource) playFromSource(initialSource);
   }, [player]);
 
   const initPlayer = () => {
     setPlayer(new ChiptuneJsPlayer(new ChiptuneJsConfig(0)));
   };
 
-  const playMusic = (id) => {
+  const playFromSource = (source) => {
     setTitle("Loading");
-    player
-      .load(`jsplayer.php?moduleid=${id}`)
+    setPlayingSource(source);
+    getBuffer(source, player)
       .then((buffer) => {
         player.play(buffer);
-        setTrackId(id);
         setTitle(player.metadata().title);
         setMax(player.duration());
         setIsPlay(true);
@@ -52,9 +56,7 @@ function EmbedPlayer({ sharedTrackId, sharedTitle }) {
         document.title = `🎶 ${player.metadata().title} - CoolModFiles`;
       })
       .catch(() => {
-        const newId = getRandomInt(0, RANDOM_MAX);
-        setTrackId(newId);
-        playMusic(newId);
+        playFromSource(modArchive(getRandomInt(0, RANDOM_MAX)));
       })
       .finally(() => {
         setLoading(false);
