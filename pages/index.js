@@ -1,6 +1,5 @@
 import React from "react";
 import Head from "next/head";
-import fetch from "isomorphic-unfetch";
 
 import Player from "../components/Player";
 import Footer from "../components/Footer";

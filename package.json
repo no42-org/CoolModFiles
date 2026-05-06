@@ -23,7 +23,6 @@
     "copy-to-clipboard": "^3.3.1",
     "dotenv": "^17.4.2",
     "file-saver": "^2.0.5",
-    "isomorphic-unfetch": "^3.0.0",
     "jszip": "^3.8.0",
     "markdown-to-jsx": "^6.11.4",
     "moment": "^2.29.4",
