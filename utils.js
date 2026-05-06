@@ -214,7 +214,8 @@ function generateEmbedString(id, title) {
 }
 
 function showToast(msg) {
-  toast.dark(msg, {
+  toast(msg, {
+    theme: "dark",
     position: "bottom-center",
     autoClose: 2000,
     hideProgressBar: false,
