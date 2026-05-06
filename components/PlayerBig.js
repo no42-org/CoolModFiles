@@ -21,8 +21,6 @@ import {
 import LoadingState from "./LoadingState";
 import { showToast } from "../utils";
 
-import { useKeyPress } from "../hooks";
-
 const dropDownOpen = [styles.dropdownContent, styles.dropdownOpen].join(" ");
 const dropDownClose = styles.dropdownContent;
 
@@ -54,14 +52,6 @@ function PlayerBig({
   updateFavoriteModsRuntime,
 }) {
   const [dropDownClass, setDropDownClass] = React.useState(dropDownClose);
-  const shareKey = useKeyPress("s");
-
-  React.useEffect(() => {
-    if (shareKey)
-      setDropDownClass(
-        dropDownClass === dropDownClose ? dropDownOpen : dropDownClose
-      );
-  }, [shareKey]);
 
   React.useEffect(() => {
     setTimeout(() => {
