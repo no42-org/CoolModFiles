@@ -3,7 +3,7 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 IMAGE_NAME ?= ghcr.io/no42-org/coolmodfiles
-IMAGE_TAG  ?= dev
+IMAGE_TAG  ?= rc
 
 ENV_FILE_ARG := $(if $(wildcard .env),--env-file .env,)
 
