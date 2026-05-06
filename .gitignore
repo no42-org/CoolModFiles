@@ -24,3 +24,9 @@ yarn-error.log*
 
 .env
 .now
+
+# AI tools
+.claude/
+_bmad/
+_bmad-output/
+openspec/
