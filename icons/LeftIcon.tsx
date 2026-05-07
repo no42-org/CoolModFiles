@@ -1,6 +1,10 @@
 import * as React from "react";
 
-function SvgLeft(props: React.SVGProps<SVGSVGElement>) {
+type SvgLeftProps = React.SVGProps<SVGSVGElement> & {
+  disable?: "true" | "false";
+};
+
+function SvgLeft(props: SvgLeftProps) {
   return (
     <svg width="1em" height="1em" viewBox="0 0 80 80" fill="none" {...props}>
       <path

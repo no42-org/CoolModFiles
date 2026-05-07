@@ -1,6 +1,10 @@
 import * as React from "react";
 
-function SvgRight(props: React.SVGProps<SVGSVGElement>) {
+type SvgRightProps = React.SVGProps<SVGSVGElement> & {
+  disable?: "true" | "false";
+};
+
+function SvgRight(props: SvgRightProps) {
   return (
     <svg width="1em" height="1em" viewBox="0 0 80 80" fill="none" {...props}>
       <path

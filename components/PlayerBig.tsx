@@ -257,9 +257,6 @@ function PlayerBig({
               height="70"
               width="70"
               onClick={!loading ? () => playPrevious() : undefined}
-              // @ts-expect-error -- LeftButton (SVG icon) accepts a custom
-              // `disable` string prop. Not in standard SVGProps; defer typing
-              // until the icons are made stricter in a future change.
               disable={currentId === 0 || loading ? "true" : "false"}
             />
             {!isPlay ? (
@@ -281,7 +278,6 @@ function PlayerBig({
               height="70"
               width="70"
               onClick={!loading ? () => playNext() : undefined}
-              // @ts-expect-error -- same pattern as LeftButton's disable.
               disable={loading ? "true" : "false"}
             />
           </div>
