@@ -1,8 +1,17 @@
 import React from "react";
-import styles from "./LikedMods.module.scss";
-import LikedMod from "./LikedMod";
+import LikedMod, { FavoriteTrack } from "./LikedMod";
 
-function LikedMods({ content, onPlay, removeFavoriteModRuntime }) {
+type LikedModsProps = {
+  content: FavoriteTrack[];
+  onPlay: (track: FavoriteTrack) => void;
+  removeFavoriteModRuntime: (id: number, index?: number) => void;
+};
+
+function LikedMods({
+  content,
+  onPlay,
+  removeFavoriteModRuntime,
+}: LikedModsProps) {
   if (!content.length) {
     return (
       <ol>

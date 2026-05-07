@@ -3,10 +3,12 @@ import Markdown from "markdown-to-jsx";
 
 import styles from "./BackSide.module.scss";
 
-function BackSide({ content }) {
-  if (!content) {
-    content = "Failed to fetch HELP.md";
-  }
+type BackSideProps = {
+  content?: string;
+};
+
+function BackSide({ content }: BackSideProps) {
+  const text = content || "Failed to fetch HELP.md";
   return (
     <Markdown
       options={{
@@ -46,7 +48,7 @@ function BackSide({ content }) {
         },
       }}
     >
-      {content}
+      {text}
     </Markdown>
   );
 }

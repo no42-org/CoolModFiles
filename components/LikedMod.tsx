@@ -1,7 +1,25 @@
 import React from "react";
 import styles from "./LikedMods.module.scss";
 
-function LikedMod({ track, index, onPlay, removeFavoriteModRuntime }) {
+export type FavoriteTrack = {
+  id: number;
+  title?: string;
+  artist?: string;
+};
+
+type LikedModProps = {
+  track: FavoriteTrack;
+  index: number;
+  onPlay: (track: FavoriteTrack) => void;
+  removeFavoriteModRuntime: (id: number, index?: number) => void;
+};
+
+function LikedMod({
+  track,
+  index,
+  onPlay,
+  removeFavoriteModRuntime,
+}: LikedModProps) {
   return (
     <li className={styles.likedMod} key={index}>
       <div
@@ -25,10 +43,10 @@ function LikedMod({ track, index, onPlay, removeFavoriteModRuntime }) {
   );
 }
 
-function getSanitizedTrackTitle(track) {
+function getSanitizedTrackTitle(track: FavoriteTrack): string {
   if (track.title) {
     if (track.title.length == (track.title.match(/[^a-zA-Z ]/g) || []).length) {
-      return "\uFFFD".repeat(3);
+      return "�".repeat(3);
     } else {
       return track.title;
     }
