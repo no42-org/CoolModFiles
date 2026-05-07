@@ -194,17 +194,17 @@ const MOBILE_MESSAGES = [
   "Wait, there is no mobile support? WHAT!?",
 ];
 
-function getRandomInt(min, max) {
+function getRandomInt(min: number, max: number): number {
   min = Math.ceil(min);
   max = Math.floor(max);
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function getRandomFromArray(array) {
+function getRandomFromArray<T>(array: readonly T[]): T {
   return array[Math.floor(Math.random() * array.length)];
 }
 
-function generateEmbedString(id, title) {
+function generateEmbedString(id: string | number, title: string): string {
   return `<iframe
   width="100%"
   height="200"
@@ -213,13 +213,12 @@ function generateEmbedString(id, title) {
 ></iframe>`;
 }
 
-function showToast(msg) {
+function showToast(msg: string): void {
   toast(msg, {
     theme: "dark",
     position: "bottom-center",
     autoClose: 2000,
     hideProgressBar: false,
-    newestOnTop: false,
     closeOnClick: true,
     rtl: false,
     pauseOnHover: false,
