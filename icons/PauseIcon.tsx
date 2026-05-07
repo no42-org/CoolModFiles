@@ -1,6 +1,6 @@
 import * as React from "react";
 
-function SvgPause(props) {
+function SvgPause(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg width="1em" height="1em" viewBox="0 0 130 130" fill="none" {...props}>
       <path

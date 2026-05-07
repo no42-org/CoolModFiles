@@ -1,23 +1,23 @@
 import * as React from "react";
 
-function SvgRight(props) {
+function SvgLeft(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg width="1em" height="1em" viewBox="0 0 80 80" fill="none" {...props}>
       <path
         fillRule="evenodd"
         clipRule="evenodd"
-        d="M80 40c0 22.091-17.909 40-40 40S0 62.091 0 40 17.909 0 40 0s40 17.909 40 40zM46.803 25.578h5.442v28.3h-5.442V42.87L27.755 53.867V25.59l19.048 10.997V25.578z"
+        d="M80 40c0 22.091-17.909 40-40 40S0 62.091 0 40 17.909 0 40 0s40 17.909 40 40zM33.197 25.578h-5.442v28.3h5.442V42.87l19.048 10.997V25.59L33.197 36.586V25.578z"
         fill="#BD00FF"
       />
       <path
         fillRule="evenodd"
         clipRule="evenodd"
-        d="M80 40c0 22.091-17.909 40-40 40S0 62.091 0 40 17.909 0 40 0s40 17.909 40 40zM46.803 25.578h5.442v28.3h-5.442V42.87L27.755 53.867V25.59l19.048 10.997V25.578z"
-        fill="url(#right_svg__paint0_linear)"
+        d="M80 40c0 22.091-17.909 40-40 40S0 62.091 0 40 17.909 0 40 0s40 17.909 40 40zM33.197 25.578h-5.442v28.3h5.442V42.87l19.048 10.997V25.59L33.197 36.586V25.578z"
+        fill="url(#left_svg__paint0_linear)"
       />
       <defs>
         <linearGradient
-          id="right_svg__paint0_linear"
+          id="left_svg__paint0_linear"
           x1={12.615}
           y1={1.231}
           x2={77.846}
@@ -32,4 +32,4 @@ function SvgRight(props) {
   );
 }
 
-export default SvgRight;
+export default SvgLeft;

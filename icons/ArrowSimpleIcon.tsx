@@ -1,6 +1,6 @@
 import * as React from "react";
 
-function SvgArrowSimple(props) {
+function SvgArrowSimple(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none" {...props}>
       <path

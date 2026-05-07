@@ -1,6 +1,8 @@
 import * as React from "react";
 
-function SvgVolume(props) {
+type VolumeIconProps = React.SVGProps<SVGSVGElement> & { volume?: number };
+
+function SvgVolume(props: VolumeIconProps) {
   return (
     <svg
       width="1em"
