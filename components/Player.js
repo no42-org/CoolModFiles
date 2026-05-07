@@ -81,24 +81,20 @@ const Player = React.forwardRef(function Player(
     styles.playerBack,
   ]);
 
-  let favoriteModsRuntime, setFavoriteModsRuntime;
-  let favoriteModsJSON = localStorage.getItem("favoriteMods");
-  if (favoriteModsJSON === null || !favoriteModsJSON) {
-    [favoriteModsRuntime, setFavoriteModsRuntime] = React.useState([]);
-  } else {
-    let initFavMods = JSON.parse(favoriteModsJSON);
+  const [favoriteModsRuntime, setFavoriteModsRuntime] = React.useState(() => {
+    const json = localStorage.getItem("favoriteMods");
+    if (!json) return [];
+    let init = JSON.parse(json);
     if (
-      initFavMods.length &&
-      (typeof initFavMods[0] === "string" || initFavMods[0] instanceof String)
+      init.length &&
+      (typeof init[0] === "string" || init[0] instanceof String)
     ) {
-      initFavMods = initFavMods.map((oldTrackId) => {
-        return {
-          id: parseInt(oldTrackId.replace("#", "")),
-        };
-      });
+      init = init.map((oldTrackId) => ({
+        id: parseInt(oldTrackId.replace("#", "")),
+      }));
     }
-    [favoriteModsRuntime, setFavoriteModsRuntime] = React.useState(initFavMods);
-  }
+    return init;
+  });
   const [counter, setCounter] = React.useState(0);
 
   const [spaceKey, enterKey] = [useKeyPress(" "), useKeyPress("Enter")];

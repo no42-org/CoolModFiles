@@ -34,7 +34,7 @@ function EmbedPlayer({ initialSource, sharedTitle }) {
   );
   React.useEffect(() => {
     setTitle(sharedTitle);
-  }, sharedTitle);
+  }, [sharedTitle]);
   React.useEffect(() => {
     if (player && initialSource) playFromSource(initialSource);
   }, [player]);
