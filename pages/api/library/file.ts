@@ -1,6 +1,7 @@
 // GET /api/library/file?path=<file>
 // Streams the raw bytes of the requested module file.
 
+import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs/promises";
 import { createReadStream } from "fs";
 import { LIBRARY_ROOT, isModuleFile, resolveSafe } from "../../../lib/library";
@@ -11,7 +12,12 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+type ErrorResponse = { error: string };
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<ErrorResponse>
+) {
   if (!LIBRARY_ROOT) {
     return res.status(404).json({ error: "library_disabled" });
   }
@@ -21,17 +27,18 @@ export default async function handler(req, res) {
   }
 
   const userPath = req.query.path;
-  if (!userPath) {
+  if (!userPath || typeof userPath !== "string") {
     return res.status(400).json({ error: "missing_path" });
   }
 
-  let filepath;
+  let filepath: string;
   try {
     filepath = await resolveSafe(userPath, LIBRARY_ROOT);
   } catch (e) {
-    if (e.code === "ENOENT")
+    const err = e as NodeJS.ErrnoException;
+    if (err.code === "ENOENT")
       return res.status(404).json({ error: "not_found" });
-    if (e.code === "EACCES")
+    if (err.code === "EACCES")
       return res.status(403).json({ error: "forbidden" });
     return res.status(500).json({ error: "internal" });
   }

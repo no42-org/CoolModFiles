@@ -2,6 +2,7 @@
 // Returns { dirs: string[], files: string[], truncated: boolean } for the
 // immediate children of the requested directory level.
 
+import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs/promises";
 import {
   LIBRARY_ROOT,
@@ -10,7 +11,17 @@ import {
   resolveSafe,
 } from "../../../lib/library";
 
-export default async function handler(req, res) {
+type ListingResponse = {
+  dirs: string[];
+  files: string[];
+  truncated: boolean;
+};
+type ErrorResponse = { error: string };
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<ListingResponse | ErrorResponse>
+) {
   if (!LIBRARY_ROOT) {
     return res.status(404).json({ error: "library_disabled" });
   }
@@ -19,14 +30,16 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "method_not_allowed" });
   }
 
-  const userPath = req.query.path || "";
-  let dir;
+  const rawPath = req.query.path;
+  const userPath = typeof rawPath === "string" ? rawPath : "";
+  let dir: string;
   try {
     dir = await resolveSafe(userPath, LIBRARY_ROOT);
   } catch (e) {
-    if (e.code === "ENOENT")
+    const err = e as NodeJS.ErrnoException;
+    if (err.code === "ENOENT")
       return res.status(404).json({ error: "not_found" });
-    if (e.code === "EACCES")
+    if (err.code === "EACCES")
       return res.status(403).json({ error: "forbidden" });
     return res.status(500).json({ error: "internal" });
   }
@@ -38,8 +51,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "read_failed" });
   }
 
-  const dirs = [];
-  const files = [];
+  const dirs: string[] = [];
+  const files: string[] = [];
   for (const e of entries) {
     if (e.isDirectory()) dirs.push(e.name);
     else if (e.isFile() && isModuleFile(e.name)) files.push(e.name);

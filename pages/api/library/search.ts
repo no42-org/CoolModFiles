@@ -2,6 +2,7 @@
 // Walks the configured library tree and returns up to MAX_SEARCH_RESULTS
 // file paths whose basename matches the query (case-insensitive substring).
 
+import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs/promises";
 import path from "path";
 import {
@@ -11,7 +12,13 @@ import {
   isModuleFile,
 } from "../../../lib/library";
 
-async function walk(dir, root, query, results, depth = 0) {
+async function walk(
+  dir: string,
+  root: string,
+  query: string,
+  results: string[],
+  depth = 0
+): Promise<void> {
   if (depth > MAX_DEPTH) return;
   if (results.length >= MAX_SEARCH_RESULTS) return;
   let entries;
@@ -33,7 +40,13 @@ async function walk(dir, root, query, results, depth = 0) {
   }
 }
 
-export default async function handler(req, res) {
+type SearchResponse = { results: string[] };
+type ErrorResponse = { error: string };
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<SearchResponse | ErrorResponse>
+) {
   if (!LIBRARY_ROOT) {
     return res.status(404).json({ error: "library_disabled" });
   }
@@ -50,7 +63,7 @@ export default async function handler(req, res) {
   }
 
   const root = path.resolve(LIBRARY_ROOT);
-  const results = [];
+  const results: string[] = [];
   await walk(root, root, q, results);
 
   return res.status(200).json({ results });

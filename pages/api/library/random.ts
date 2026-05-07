@@ -3,6 +3,7 @@
 // Used by the player when 'n' or auto-advance fires while a Library
 // track is playing.
 
+import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs/promises";
 import path from "path";
 import {
@@ -12,7 +13,12 @@ import {
   isModuleFile,
 } from "../../../lib/library";
 
-async function collect(dir, root, files, depth = 0) {
+async function collect(
+  dir: string,
+  root: string,
+  files: string[],
+  depth = 0
+): Promise<void> {
   if (depth > MAX_DEPTH) return;
   if (files.length >= MAX_RANDOM_SCAN) return;
   let entries;
@@ -32,7 +38,13 @@ async function collect(dir, root, files, depth = 0) {
   }
 }
 
-export default async function handler(req, res) {
+type RandomResponse = { path: string };
+type ErrorResponse = { error: string };
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<RandomResponse | ErrorResponse>
+) {
   if (!LIBRARY_ROOT) {
     return res.status(404).json({ error: "library_disabled" });
   }
@@ -42,7 +54,7 @@ export default async function handler(req, res) {
   }
 
   const root = path.resolve(LIBRARY_ROOT);
-  const files = [];
+  const files: string[] = [];
   await collect(root, root, files);
 
   if (files.length === 0) {
