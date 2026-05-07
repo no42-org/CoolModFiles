@@ -6,23 +6,35 @@ import { useInterval } from "../../hooks";
 import styles from "./EmbedPlayer.module.scss";
 import { DownloadButton, PauseButton, PlayButton } from "../../icons";
 import { getRandomInt, RANDOM_MAX } from "../../utils";
-import { modArchive, getBuffer } from "../sources";
+import {
+  modArchive,
+  getBuffer,
+  type Source,
+  type ModArchiveSource,
+} from "../sources";
 
-function EmbedPlayer({ initialSource, sharedTitle }) {
+type EmbedPlayerProps = {
+  initialSource: Source | null;
+  sharedTitle?: string;
+};
+
+function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
   const [isPlay, setIsPlay] = React.useState(false);
   const [start, setStart] = React.useState(false);
-  const [player, setPlayer] = React.useState(null);
-  const [playingSource, setPlayingSource] = React.useState(
-    () => initialSource || modArchive(42)
+  const [player, setPlayer] = React.useState<ChiptuneJsPlayer | null>(null);
+  const [playingSource, setPlayingSource] = React.useState<Source>(
+    () => initialSource || (modArchive(42) as ModArchiveSource)
   );
-  const trackId = playingSource.type === "modarchive" ? playingSource.id : null;
+  const trackId =
+    playingSource.type === "modarchive" ? playingSource.id : null;
   const [loading, setLoading] = React.useState(true);
-  const [title, setTitle] = React.useState(sharedTitle);
+  const [title, setTitle] = React.useState<string | undefined>(sharedTitle);
   const [progress, setProgress] = React.useState(0);
   const [max, setMax] = React.useState(100);
 
   useInterval(
     () => {
+      if (!player) return;
       setProgress(player.getPosition());
       if (player.getPosition() === 0 && player.duration() === 0) {
         setIsPlay(false);
@@ -46,7 +58,8 @@ function EmbedPlayer({ initialSource, sharedTitle }) {
     setPlayer(new ChiptuneJsPlayer(new ChiptuneJsConfig(0)));
   };
 
-  function playFromSource(source) {
+  function playFromSource(source: Source) {
+    if (!player) return;
     setTitle("Loading");
     setPlayingSource(source);
     getBuffer(source, player)
@@ -67,6 +80,7 @@ function EmbedPlayer({ initialSource, sharedTitle }) {
   }
 
   const togglePlay = () => {
+    if (!player) return;
     setIsPlay(!isPlay);
     player.togglePause();
   };
@@ -109,6 +123,7 @@ function EmbedPlayer({ initialSource, sharedTitle }) {
             value={progress}
             max={max}
             onChange={(val) => {
+              if (typeof val !== "number" || !player) return;
               setProgress(val);
               player.seek(val);
             }}
@@ -139,7 +154,7 @@ function EmbedPlayer({ initialSource, sharedTitle }) {
             className={styles.actionbtn}
             height="50"
             width="50"
-            onClick={!loading ? () => togglePlay() : null}
+            onClick={!loading ? () => togglePlay() : undefined}
           />
         )}
       </div>
