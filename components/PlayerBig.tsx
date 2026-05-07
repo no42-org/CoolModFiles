@@ -20,9 +20,47 @@ import {
 } from "../icons";
 import LoadingState from "./LoadingState";
 import { showToast } from "../utils";
+import type { FavoriteTrack } from "./LikedMod";
 
 const dropDownOpen = [styles.dropdownContent, styles.dropdownOpen].join(" ");
 const dropDownClose = styles.dropdownContent;
+
+type MetaData = {
+  artist?: string;
+  title?: string;
+  date?: string;
+  type?: string;
+  message?: string;
+};
+
+type PlayerBigProps = {
+  title: string;
+  loading: boolean;
+  metaData: MetaData;
+  trackId: number | null;
+  canFavorite: boolean;
+  progress: number;
+  max: number;
+  player: ChiptuneJsPlayer | null;
+  volume: number;
+  setVolume: (v: number) => void;
+  toggleMute: () => void;
+  isPlay: boolean;
+  togglePlay: () => void;
+  setProgress: (n: number) => void;
+  changeSize: () => void;
+  playPrevious: () => void;
+  playNext: () => void | Promise<void>;
+  currentId: number;
+  toggleHelpDrawer: () => void;
+  toggleLikedModsDrawer: () => void;
+  downloadTrack: () => void | Promise<void>;
+  repeat: boolean;
+  setRepeat: (v: boolean) => void;
+  copyEmbed: () => void;
+  favoriteModsRuntime: FavoriteTrack[];
+  updateFavoriteModsRuntime: (next: FavoriteTrack[]) => void;
+};
 
 function PlayerBig({
   title,
@@ -51,18 +89,20 @@ function PlayerBig({
   copyEmbed,
   favoriteModsRuntime,
   updateFavoriteModsRuntime,
-}) {
+}: PlayerBigProps) {
   const [dropDownClass, setDropDownClass] = React.useState(dropDownClose);
 
   React.useEffect(() => {
     setTimeout(() => {
       try {
-        document.getElementById("backside").style.visibility = "visible";
+        const el = document.getElementById("backside");
+        if (el) el.style.visibility = "visible";
       } catch (error) {}
     }, 1000);
     setTimeout(() => {
       try {
-        document.getElementById("liked-mods").style.visibility = "visible";
+        const el = document.getElementById("liked-mods");
+        if (el) el.style.visibility = "visible";
       } catch (error) {}
     }, 1000);
   }, []);
@@ -70,33 +110,27 @@ function PlayerBig({
   React.useEffect(() => {
     document
       .getElementById("repeat")
-      .classList.toggle(styles.deactive, !repeat);
+      ?.classList.toggle(styles.deactive, !repeat);
   }, [repeat]);
 
-  const likeCurrentTrack = (favoriteModsRuntime, updateFavoriteModsRuntime) => {
-    let trackIdInt = parseInt(trackId);
-    if (favoriteModsRuntime.length) {
-      favoriteModsRuntime = favoriteModsRuntime.filter(
-        (track) => track.id !== trackIdInt
-      );
-      let newFavoriteModsRuntime = [
-        ...favoriteModsRuntime,
-        {
-          id: trackIdInt,
-          ...(metaData.artist && { artist: metaData.artist }),
-          ...(metaData.title && { title: metaData.title }),
-        },
-      ];
-      updateFavoriteModsRuntime(newFavoriteModsRuntime);
-    } else {
-      updateFavoriteModsRuntime([
-        {
-          id: trackIdInt,
-          ...(metaData.artist && { artist: metaData.artist }),
-          ...(metaData.title && { title: metaData.title }),
-        },
-      ]);
-    }
+  const likeCurrentTrack = (
+    runtime: FavoriteTrack[],
+    update: (next: FavoriteTrack[]) => void
+  ) => {
+    if (trackId === null) return;
+    const trackIdInt = trackId;
+    const filtered = runtime.length
+      ? runtime.filter((track) => track.id !== trackIdInt)
+      : [];
+    const newFavoriteModsRuntime: FavoriteTrack[] = [
+      ...filtered,
+      {
+        id: trackIdInt,
+        ...(metaData.artist && { artist: metaData.artist }),
+        ...(metaData.title && { title: metaData.title }),
+      },
+    ];
+    update(newFavoriteModsRuntime);
   };
 
   return (
@@ -117,6 +151,7 @@ function PlayerBig({
             step={1}
             vertical={true}
             onChange={(val) => {
+              if (typeof val !== "number" || !player) return;
               setVolume(val);
               player.setVolume(val);
             }}
@@ -206,6 +241,7 @@ function PlayerBig({
             value={progress}
             max={max}
             onChange={(val) => {
+              if (typeof val !== "number" || !player) return;
               setProgress(val);
               player.seek(val);
             }}
@@ -220,7 +256,10 @@ function PlayerBig({
             <LeftButton
               height="70"
               width="70"
-              onClick={!loading ? () => playPrevious() : null}
+              onClick={!loading ? () => playPrevious() : undefined}
+              // @ts-expect-error -- LeftButton (SVG icon) accepts a custom
+              // `disable` string prop. Not in standard SVGProps; defer typing
+              // until the icons are made stricter in a future change.
               disable={currentId === 0 || loading ? "true" : "false"}
             />
             {!isPlay ? (
@@ -228,7 +267,7 @@ function PlayerBig({
                 className={styles.actionbtn}
                 height="130"
                 width="130"
-                onClick={!loading ? () => togglePlay() : null}
+                onClick={!loading ? () => togglePlay() : undefined}
               />
             ) : (
               <PauseButton
@@ -241,7 +280,8 @@ function PlayerBig({
             <RightButton
               height="70"
               width="70"
-              onClick={!loading ? () => playNext() : null}
+              onClick={!loading ? () => playNext() : undefined}
+              // @ts-expect-error -- same pattern as LeftButton's disable.
               disable={loading ? "true" : "false"}
             />
           </div>
@@ -277,6 +317,7 @@ function PlayerBig({
                 height="30"
                 width="30"
                 onClick={() => {
+                  if (!player) return;
                   showToast(`repeat ${!repeat ? "on" : "off"}`);
                   player.setRepeatCount(!repeat ? -1 : 0);
                   setRepeat(!repeat);

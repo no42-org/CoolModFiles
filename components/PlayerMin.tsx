@@ -5,6 +5,20 @@ import moment from "moment";
 import styles from "./PlayerMin.module.scss";
 import { ArrowIcon, DownloadButton, PauseButton, PlayButton } from "../icons";
 
+type PlayerMinProps = {
+  title: string;
+  loading: boolean;
+  trackId: number | null;
+  progress: number;
+  max: number;
+  isPlay: boolean;
+  player: ChiptuneJsPlayer | null;
+  togglePlay: () => void;
+  setProgress: (n: number) => void;
+  changeSize: () => void;
+  downloadTrack: () => void | Promise<void>;
+};
+
 function PlayerMin({
   title,
   loading,
@@ -17,7 +31,7 @@ function PlayerMin({
   setProgress,
   changeSize,
   downloadTrack,
-}) {
+}: PlayerMinProps) {
   return (
     <React.Fragment>
       <div className={styles.header}>
@@ -52,6 +66,7 @@ function PlayerMin({
             value={progress}
             max={max}
             onChange={(val) => {
+              if (typeof val !== "number" || !player) return;
               setProgress(val);
               player.seek(val);
             }}
@@ -68,7 +83,7 @@ function PlayerMin({
             className={styles.actionbtn}
             height="50"
             width="50"
-            onClick={!loading ? () => togglePlay() : null}
+            onClick={!loading ? () => togglePlay() : undefined}
           />
         ) : (
           <PauseButton
