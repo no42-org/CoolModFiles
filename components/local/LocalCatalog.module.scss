@@ -1,0 +1,80 @@
+.wrapper {
+  width: 90%;
+  max-width: 720px;
+  margin: 0 auto 16px;
+  font-family: "Press Start 2P", cursive;
+  color: white;
+}
+
+.dropZone {
+  border: 2px dashed rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.4);
+  margin-bottom: 12px;
+  transition: border-color 0.15s, background 0.15s;
+  font-size: 0.7rem;
+  line-height: 1.6;
+}
+
+.dropZoneActive {
+  border-color: #c200ff;
+  background: rgba(194, 0, 255, 0.1);
+}
+
+.pickButton {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 8px 16px;
+  background-color: black;
+  border: 2px solid #c200ff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.65rem;
+  color: white;
+
+  &:hover {
+    background: linear-gradient(to left, #c200ff, #00b8ff);
+  }
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+}
+
+.row {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:hover {
+    background: rgba(194, 0, 255, 0.2);
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 0.65rem;
+  opacity: 0.6;
+}

@@ -15,12 +15,30 @@ import { generateEmbedString, getRandomInt, showToast } from "../utils";
 import { DownloadButton } from "../icons";
 import {
   modArchive,
+  local,
   getBuffer,
   getPermalink,
   sourceKey,
+  isFavoritable,
 } from "./sources";
 const DEFAULT_VOLUME = 80
-function Player({ initialSource, backSideContent, latestId }) {
+
+function pickRandomNext(source, { latestId, pickedFiles }) {
+  switch (source.type) {
+    case "modarchive":
+      return modArchive(getRandomInt(0, latestId));
+    case "local":
+      if (!pickedFiles || pickedFiles.length === 0) return null;
+      return local(pickedFiles[getRandomInt(0, pickedFiles.length - 1)]);
+    default:
+      return modArchive(getRandomInt(0, latestId));
+  }
+}
+
+const Player = React.forwardRef(function Player(
+  { initialSource, backSideContent, latestId, pickedFiles = [] },
+  ref
+) {
   const [isPlay, setIsPlay] = React.useState(false);
   const [player, setPlayer] = React.useState(null);
   const [volume, setVolume] = React.useState(() => {
@@ -213,7 +231,11 @@ function Player({ initialSource, backSideContent, latestId }) {
       playFromSource(prevSources[cid]);
       setCurrentId(cid);
     } else {
-      playFromSource(modArchive(getRandomInt(0, maxId)));
+      const next = pickRandomNext(playingSource, {
+        latestId: maxId,
+        pickedFiles,
+      });
+      if (next) playFromSource(next);
     }
   };
 
@@ -256,6 +278,10 @@ function Player({ initialSource, backSideContent, latestId }) {
         playFromSource(modArchive(getRandomInt(0, maxId)));
       });
   };
+
+  React.useImperativeHandle(ref, () => ({
+    playSource: (source) => playFromSource(source),
+  }));
 
   const toggleMute = () => {
     if (volume > 0) {
@@ -354,6 +380,20 @@ function Player({ initialSource, backSideContent, latestId }) {
   return (
     <div>
       <ToastContainer />
+      {playingSource.type !== "modarchive" && (
+        <div
+          style={{
+            textAlign: "center",
+            fontSize: "0.65rem",
+            fontFamily: '"Press Start 2P", cursive',
+            color: "white",
+            opacity: 0.8,
+            margin: "8px 0",
+          }}
+        >
+          Playing from: {playingSource.type}
+        </div>
+      )}
       {size === "big" ? (
         <div className={styles.playerWrapper}>
           <div className={styles.player}>
@@ -362,6 +402,7 @@ function Player({ initialSource, backSideContent, latestId }) {
               loading={loading}
               metaData={metaData}
               trackId={trackId}
+              canFavorite={isFavoritable(playingSource)}
               progress={progress}
               max={max}
               player={player}
@@ -434,6 +475,6 @@ function Player({ initialSource, backSideContent, latestId }) {
       )}
     </div>
   );
-}
+});
 
 export default Player;

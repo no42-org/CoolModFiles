@@ -29,6 +29,7 @@ function PlayerBig({
   loading,
   metaData,
   trackId,
+  canFavorite,
   progress,
   max,
   player,
@@ -129,14 +130,16 @@ function PlayerBig({
                 width="60"
                 onClick={() => downloadTrack()}
               />
-              <LikeButton
-                className={styles.likeButton}
-                height="30"
-                width="60"
-                onClick={() =>
-                  likeCurrentTrack(favoriteModsRuntime, updateFavoriteModsRuntime)
-                }
-              />
+              {canFavorite && (
+                <LikeButton
+                  className={styles.likeButton}
+                  height="30"
+                  width="60"
+                  onClick={() =>
+                    likeCurrentTrack(favoriteModsRuntime, updateFavoriteModsRuntime)
+                  }
+                />
+              )}
             </div>
             <img
               className={styles.banner}

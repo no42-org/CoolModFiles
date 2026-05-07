@@ -5,6 +5,16 @@
 //   { type: "library",    path: string }
 //   { type: "local",      file: File }
 
+export const MODULE_EXTENSIONS = [
+  ".mod", ".xm", ".s3m", ".it", ".mptm",
+  ".stm", ".mtm", ".669", ".med", ".okt", ".ult",
+];
+
+export function isModuleFile(filename) {
+  const lower = filename.toLowerCase();
+  return MODULE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
 export const modArchive = (id) => ({ type: "modarchive", id });
 export const library = (path) => ({ type: "library", path });
 export const local = (file) => ({ type: "local", file });

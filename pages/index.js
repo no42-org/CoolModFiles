@@ -3,6 +3,8 @@ import Head from "next/head";
 
 import Player from "../components/Player";
 import Footer from "../components/Footer";
+import SourceTabs from "../components/SourceTabs";
+import LocalCatalog from "../components/local/LocalCatalog";
 import { modArchive } from "../components/sources";
 import {
   getRandomInt,
@@ -19,6 +21,9 @@ import { isMobile } from "react-device-detect";
 
 function Index({ trackId, initialSource, backSideContent, latestId }) {
   const [start, setStart] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState("random");
+  const [pickedFiles, setPickedFiles] = React.useState([]);
+  const playerRef = React.useRef(null);
   const [randomMsg, setRandomMsg] = React.useState(
     getRandomFromArray(getRandomInt(0, 158) ? MESSAGES : EE_MESSAGES)
   );
@@ -57,10 +62,24 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
           <title>CoolModFiles.com - Play some cool MOD files!</title>
         </Head>
         <div id="app">
+          <SourceTabs
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            showLibrary={false}
+          />
+          {activeTab === "local" && (
+            <LocalCatalog
+              pickedFiles={pickedFiles}
+              setPickedFiles={setPickedFiles}
+              onPlay={(source) => playerRef.current?.playSource(source)}
+            />
+          )}
           <Player
+            ref={playerRef}
             initialSource={initialSource}
             backSideContent={backSideContent}
             latestId={latestId}
+            pickedFiles={pickedFiles}
           />
           <Footer />
         </div>
