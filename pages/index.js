@@ -51,6 +51,18 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
     }
   }, [initialSource, libraryAvailable]);
 
+  // Tab change handler. Switching INTO Random is an action, not just a
+  // catalog mode change: it plays a new random ModArchive track and
+  // resets the prev/next history so back-button navigation stays within
+  // ModArchive (not the source the user just left).
+  const handleTabChange = (tab) => {
+    if (tab === "random" && activeTab !== "random") {
+      const next = modArchive(getRandomInt(0, latestId));
+      playerRef.current?.playSource(next, { resetHistory: true });
+    }
+    setActiveTab(tab);
+  };
+
   const getMessage = () => {
     if (isMobile) {
       return getRandomFromArray(MOBILE_MESSAGES);
@@ -86,9 +98,31 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
         <div id="app">
           <SourceTabs
             activeTab={activeTab}
-            onChange={setActiveTab}
+            onChange={handleTabChange}
             showLibrary={libraryAvailable}
           />
+          {activeTab === "random" && (
+            <div
+              style={{
+                textAlign: "center",
+                fontSize: "0.55rem",
+                fontFamily: '"Press Start 2P", cursive',
+                color: "white",
+                opacity: 0.6,
+                marginBottom: 12,
+              }}
+            >
+              from{" "}
+              <a
+                href="https://modarchive.org"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#00b8ff", textDecoration: "underline" }}
+              >
+                modarchive.org
+              </a>
+            </div>
+          )}
           {activeTab === "library" && libraryAvailable && (
             <LibraryCatalog
               currentPath={libraryPath}

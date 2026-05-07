@@ -261,12 +261,19 @@ const Player = React.forwardRef(function Player(
     }
   };
 
-  const playFromSource = (source) => {
+  const playFromSource = (source, options = {}) => {
+    const { resetHistory = false } = options;
     setLoading(true);
     setIsPlay(false);
     setTitle("Loading...");
     player.pause();
     setPlayingSource(source);
+    if (resetHistory) {
+      // Synchronous so the catalog tab switch lands on a fresh history.
+      // The .then below skips its own bookkeeping in this branch.
+      setPrevSources([source]);
+      setCurrentId(0);
+    }
     getBuffer(source, player)
       .then((buffer) => {
         setLoading(false);
@@ -280,11 +287,13 @@ const Player = React.forwardRef(function Player(
         if (permalink) {
           window.history.pushState({ source }, "", permalink);
         }
-        const key = sourceKey(source);
-        if (!prevSources.some((s) => sourceKey(s) === key)) {
-          let cid = currentId + 1;
-          setCurrentId(cid);
-          setPrevSources([...prevSources, source]);
+        if (!resetHistory) {
+          const key = sourceKey(source);
+          if (!prevSources.some((s) => sourceKey(s) === key)) {
+            let cid = currentId + 1;
+            setCurrentId(cid);
+            setPrevSources([...prevSources, source]);
+          }
         }
         document.title = `🎶 ${player.metadata().title} - CoolModFiles.com 🎶`;
       })
@@ -294,7 +303,7 @@ const Player = React.forwardRef(function Player(
   };
 
   React.useImperativeHandle(ref, () => ({
-    playSource: (source) => playFromSource(source),
+    playSource: (source, options) => playFromSource(source, options),
   }));
 
   const toggleMute = () => {
