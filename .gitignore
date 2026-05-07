@@ -31,3 +31,7 @@ yarn-error.log*
 _bmad/
 _bmad-output/
 openspec/
+
+# typescript
+next-env.d.ts
+*.tsbuildinfo

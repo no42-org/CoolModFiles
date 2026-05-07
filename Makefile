@@ -8,7 +8,7 @@ IMAGE_TAG  ?= rc
 ENV_FILE_ARG := $(if $(wildcard .env),--env-file .env,)
 LIBRARY_MOUNT_ARG := $(if $(wildcard ./mods),-v $(CURDIR)/mods:/library:ro -e LIBRARY_ROOT=/library,)
 
-.PHONY: help install lint audit build test verify format format-check image run clean
+.PHONY: help install lint typecheck audit build test verify format format-check image run clean
 
 help: ## Show this help
 	@awk 'BEGIN {FS=":.*?## "} /^[a-zA-Z_-]+:.*?## /{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -19,6 +19,9 @@ install: ## Install dependencies (clean install from lockfile)
 lint: install ## Run ESLint
 	npm run lint
 
+typecheck: install ## Run TypeScript compiler in check-only mode
+	npm run typecheck
+
 audit: install ## Run npm audit (fails on high or critical)
 	npm audit --audit-level=high
 
@@ -28,8 +31,9 @@ build: install ## Build the Next.js app
 test: install ## Run Vitest test suite
 	npm test
 
-verify: install ## Run lint + audit + build (fail-fast)
+verify: install ## Run lint + typecheck + audit + build (fail-fast)
 	npm run lint
+	npm run typecheck
 	npm audit --audit-level=high
 	npm run build
 
