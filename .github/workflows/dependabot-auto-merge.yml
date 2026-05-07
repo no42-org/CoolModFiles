@@ -1,0 +1,40 @@
+name: Dependabot auto-merge
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve and enable auto-merge
+        # Auto-merge patch and minor bumps. Security updates auto-merge
+        # at any severity level (ghsa-id non-empty marks them); the CI
+        # lint+audit+build gate is the safety net for breakage.
+        if: |
+          steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+          steps.meta.outputs.update-type == 'version-update:semver-minor' ||
+          steps.meta.outputs.ghsa-id != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+          GHSA_ID: ${{ steps.meta.outputs.ghsa-id }}
+        run: |
+          if [ -n "$GHSA_ID" ]; then
+            label="security update ($GHSA_ID)"
+          else
+            label="$UPDATE_TYPE"
+          fi
+          gh pr review "$PR_URL" --approve --body "Auto-approved: $label"
+          gh pr merge "$PR_URL" --auto --squash
