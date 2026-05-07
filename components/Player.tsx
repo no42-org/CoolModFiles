@@ -22,10 +22,22 @@ import {
   sourceKey,
   isFavoritable,
   getEmbedHtml,
+  type Source,
+  type SourceHistoryBuckets,
 } from "./sources";
+import type { FavoriteTrack } from "./LikedMod";
+
 const DEFAULT_VOLUME = 80;
 
-async function pickRandomNext(source, { latestId, pickedFiles }) {
+type PickRandomNextCtx = {
+  latestId: number;
+  pickedFiles: File[];
+};
+
+async function pickRandomNext(
+  source: Source,
+  { latestId, pickedFiles }: PickRandomNextCtx
+): Promise<Source | null> {
   switch (source.type) {
     case "modarchive":
       return modArchive(getRandomInt(0, latestId));
@@ -36,45 +48,64 @@ async function pickRandomNext(source, { latestId, pickedFiles }) {
       try {
         const r = await fetch("/api/library/random");
         if (!r.ok) return null;
-        const data = await r.json();
+        const data = (await r.json()) as { path?: string };
         return data.path ? library(data.path) : null;
       } catch {
         return null;
       }
     }
-    default:
-      return modArchive(getRandomInt(0, latestId));
   }
 }
 
-const Player = React.forwardRef(function Player(
+type MetaData = {
+  artist?: string;
+  title?: string;
+  date?: string;
+  type?: string;
+  message?: string;
+};
+
+type PlaySourceOptions = { resetHistory?: boolean };
+
+export type PlayerHandle = {
+  playSource: (source: Source, options?: PlaySourceOptions) => void;
+};
+
+type PlayerProps = {
+  initialSource: Source | null;
+  backSideContent?: string;
+  latestId: number;
+  pickedFiles?: File[];
+};
+
+const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
   { initialSource, backSideContent, latestId, pickedFiles = [] },
   ref
 ) {
   const [isPlay, setIsPlay] = React.useState(false);
-  const [player, setPlayer] = React.useState(null);
-  const [volume, setVolume] = React.useState(() => {
-    const rememberedVolume = parseInt(localStorage.getItem("volume"));
+  const [player, setPlayer] = React.useState<ChiptuneJsPlayer | null>(null);
+  const [volume, setVolume] = React.useState<number>(() => {
+    const rememberedVolume = parseInt(localStorage.getItem("volume") || "");
     if (rememberedVolume > -1) return rememberedVolume;
     return DEFAULT_VOLUME;
   });
   const [unmuteVolume, setUnmuteVolume] = React.useState(DEFAULT_VOLUME);
   const [maxId] = React.useState(latestId);
-  const [playingSource, setPlayingSource] = React.useState(
+  const [playingSource, setPlayingSource] = React.useState<Source>(
     () => initialSource || modArchive(getRandomInt(0, latestId))
   );
   const trackId = playingSource.type === "modarchive" ? playingSource.id : null;
-  const [metaData, setMetaData] = React.useState({});
+  const [metaData, setMetaData] = React.useState<MetaData>({});
   const [loading, setLoading] = React.useState(true);
   const [title, setTitle] = React.useState("Loading...");
   const [progress, setProgress] = React.useState(0);
   const [max, setMax] = React.useState(0);
-  const [size, setSize] = React.useState("big");
+  const [size, setSize] = React.useState<"big" | "small">("big");
   // Per-source play history. prev/next navigate within the bucket of
   // the currently playing source — pressing prev while a Library track
   // is playing walks Library history only, and switching to Random
   // resets the modarchive bucket without disturbing the others.
-  const [history, setHistory] = React.useState({
+  const [history, setHistory] = React.useState<SourceHistoryBuckets>({
     modarchive: { items: [], current: -1 },
     library: { items: [], current: -1 },
     local: { items: [], current: -1 },
@@ -83,12 +114,16 @@ const Player = React.forwardRef(function Player(
   const [repeat, setRepeat] = React.useState(false);
   const [helpDrawerOpen, setHelpDrawerOpen] = React.useState(false);
   const [likedModsDrawerOpen, setLikedModsDrawerOpen] = React.useState(false);
-  const [backClass, setBackClass] = React.useState([styles.playerBack]);
-  const [likedModsClass, setLikedModsClass] = React.useState([
+  const [backClass, setBackClass] = React.useState<string[]>([
+    styles.playerBack,
+  ]);
+  const [likedModsClass, setLikedModsClass] = React.useState<string[]>([
     styles.playerBack,
   ]);
 
-  const [favoriteModsRuntime, setFavoriteModsRuntime] = React.useState(() => {
+  const [favoriteModsRuntime, setFavoriteModsRuntime] = React.useState<
+    FavoriteTrack[]
+  >(() => {
     const json = localStorage.getItem("favoriteMods");
     if (!json) return [];
     let init = JSON.parse(json);
@@ -96,7 +131,7 @@ const Player = React.forwardRef(function Player(
       init.length &&
       (typeof init[0] === "string" || init[0] instanceof String)
     ) {
-      init = init.map((oldTrackId) => ({
+      init = init.map((oldTrackId: string) => ({
         id: parseInt(oldTrackId.replace("#", "")),
       }));
     }
@@ -130,7 +165,7 @@ const Player = React.forwardRef(function Player(
     if (spaceKey || enterKey) togglePlay();
     if (shiftKey) changeSize();
     if (helpKey || quitKey) toggleHelpDrawer();
-    if (repeatKey) {
+    if (repeatKey && player) {
       showToast(`repeat ${!repeat ? "on" : "off"}`);
       player.setRepeatCount(!repeat ? -1 : 0);
       setRepeat(!repeat);
@@ -139,15 +174,15 @@ const Player = React.forwardRef(function Player(
     if (embedKey) copyEmbed();
     if (upKey || nextKey || nextKeyVim) playNext();
     if (downKey || backKey || backKeyVim) playPrevious();
-    if ((rightKey || rightKeyVim) && isPlay)
+    if ((rightKey || rightKeyVim) && isPlay && player)
       player.seek(player.getPosition() + 5);
-    if ((leftKey || leftKeyVim) && isPlay)
+    if ((leftKey || leftKeyVim) && isPlay && player)
       player.seek(player.getPosition() - 5);
-    if (volumeUpKey) {
+    if (volumeUpKey && player) {
       setVolume(Math.min(100, volume + 5));
       player.setVolume(Math.min(100, volume + 5));
     }
-    if (volumeDownKey) {
+    if (volumeDownKey && player) {
       setVolume(Math.max(0, volume - 5));
       player.setVolume(Math.max(0, volume - 5));
     }
@@ -178,6 +213,7 @@ const Player = React.forwardRef(function Player(
 
   useInterval(
     () => {
+      if (!player) return;
       setProgress(player.getPosition() % player.duration());
       if (player.getPosition() === 0 && player.duration() === 0) {
         setIsPlay(false);
@@ -233,6 +269,7 @@ const Player = React.forwardRef(function Player(
   }, [likedModsDrawerOpen]);
 
   const togglePlay = () => {
+    if (!player) return;
     setIsPlay(!isPlay);
     player.togglePause();
   };
@@ -277,7 +314,8 @@ const Player = React.forwardRef(function Player(
     }
   };
 
-  const playFromSource = (source, options = {}) => {
+  const playFromSource = (source: Source, options: PlaySourceOptions = {}) => {
+    if (!player) return;
     const { resetHistory = false } = options;
     // Generation counter — protects against stale .then handlers from
     // earlier playFromSource calls overwriting fresh state when the
@@ -303,7 +341,7 @@ const Player = React.forwardRef(function Player(
         setLoading(false);
         player.play(buffer);
         setMetaData(player.metadata());
-        setTitle(player.metadata().title);
+        setTitle(player.metadata().title || "");
         setMax(player.duration());
         setIsPlay(true);
         player.seek(0);
@@ -340,6 +378,7 @@ const Player = React.forwardRef(function Player(
   }));
 
   const toggleMute = () => {
+    if (!player) return;
     if (volume > 0) {
       setUnmuteVolume(volume);
       setVolume(0);
@@ -379,7 +418,7 @@ const Player = React.forwardRef(function Player(
     setSize(size === "big" ? "small" : "big");
   };
 
-  const updateFavoriteModsRuntime = (newFavoriteModsArray) => {
+  const updateFavoriteModsRuntime = (newFavoriteModsArray: FavoriteTrack[]) => {
     setFavoriteModsRuntime(newFavoriteModsArray);
     localStorage.setItem("favoriteMods", JSON.stringify(newFavoriteModsArray));
     if (counter >= 10 && counter < 15) {
@@ -392,8 +431,8 @@ const Player = React.forwardRef(function Player(
     setCounter(counter + 1);
   };
 
-  const removeFavoriteModRuntime = (modToRemoveFromRuntimeList) => {
-    let newFavoriteModsArray = favoriteModsRuntime.filter(
+  const removeFavoriteModRuntime = (modToRemoveFromRuntimeList: number) => {
+    const newFavoriteModsArray = favoriteModsRuntime.filter(
       (mod) => mod.id !== modToRemoveFromRuntimeList
     );
     setFavoriteModsRuntime(newFavoriteModsArray);
@@ -405,7 +444,8 @@ const Player = React.forwardRef(function Player(
     showToast("Preparing...");
     const zip = new JSZip();
     const mods = zip.folder("mods");
-    for (let mod of favoriteModsRuntime) {
+    if (!mods) return;
+    for (const mod of favoriteModsRuntime) {
       const res = await fetch(
         `https://api.modarchive.org/downloads.php?moduleid=${mod.id}`
       );
@@ -427,7 +467,7 @@ const Player = React.forwardRef(function Player(
       ...mod,
       downloadUrl: `https://api.modarchive.org/downloads.php?moduleid=${mod.id}`,
     }));
-    let blob = new Blob([JSON.stringify(jsonContent, null, 2)], {
+    const blob = new Blob([JSON.stringify(jsonContent, null, 2)], {
       type: "application/json;charset=utf-8",
     });
     saveAs(blob, "coolmods.json");
