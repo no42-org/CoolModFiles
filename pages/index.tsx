@@ -1,12 +1,17 @@
 import React from "react";
 import Head from "next/head";
+import type { GetServerSideProps } from "next";
 
-import Player from "../components/Player";
+import Player, { type PlayerHandle } from "../components/Player";
 import Footer from "../components/Footer";
 import SourceTabs from "../components/SourceTabs";
 import LocalCatalog from "../components/local/LocalCatalog";
 import LibraryCatalog from "../components/library/LibraryCatalog";
-import { modArchive, library } from "../components/sources";
+import {
+  modArchive,
+  library,
+  type Source,
+} from "../components/sources";
 import {
   getRandomInt,
   getRandomFromArray,
@@ -20,13 +25,27 @@ import {
 import { useKeyPress } from "../hooks";
 import { isMobile } from "react-device-detect";
 
-function Index({ trackId, initialSource, backSideContent, latestId }) {
+type TabId = "random" | "library" | "local";
+
+type IndexProps = {
+  trackId: string | null;
+  initialSource: Source | null;
+  backSideContent?: string;
+  latestId: number;
+};
+
+function Index({
+  trackId,
+  initialSource,
+  backSideContent,
+  latestId,
+}: IndexProps) {
   const [start, setStart] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState("random");
-  const [pickedFiles, setPickedFiles] = React.useState([]);
+  const [activeTab, setActiveTab] = React.useState<TabId>("random");
+  const [pickedFiles, setPickedFiles] = React.useState<File[]>([]);
   const [libraryPath, setLibraryPath] = React.useState("");
   const [libraryAvailable, setLibraryAvailable] = React.useState(false);
-  const playerRef = React.useRef(null);
+  const playerRef = React.useRef<PlayerHandle | null>(null);
   const [randomMsg, setRandomMsg] = React.useState(
     getRandomFromArray(getRandomInt(0, 158) ? MESSAGES : EE_MESSAGES)
   );
@@ -55,7 +74,7 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
   // catalog mode change: it plays a new random ModArchive track and
   // resets the prev/next history so back-button navigation stays within
   // ModArchive (not the source the user just left).
-  const handleTabChange = (tab) => {
+  const handleTabChange = (tab: TabId) => {
     if (tab === "random" && activeTab !== "random") {
       const next = modArchive(getRandomInt(0, latestId));
       playerRef.current?.playSource(next, { resetHistory: true });
@@ -85,8 +104,10 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
     } else {
       sessionStorage.setItem("refresh", "true");
     }
-    document.getElementById("app").style.backgroundImage =
-      `url('/images/${getRandomFromArray(BG_IMAGES)}')`;
+    const el = document.getElementById("app");
+    if (el) {
+      el.style.backgroundImage = `url('/images/${getRandomFromArray(BG_IMAGES)}')`;
+    }
   }, []);
 
   if (start) {
@@ -163,7 +184,9 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
   );
 }
 
-export async function getServerSideProps({ query }) {
+export const getServerSideProps: GetServerSideProps<IndexProps> = async ({
+  query,
+}) => {
   const fs = await import("fs/promises");
   const path = await import("path");
 
@@ -177,19 +200,19 @@ export async function getServerSideProps({ query }) {
     backSideContent = "";
   }
 
-  let latestId;
+  let latestId: number;
   try {
     const rss_req = await fetch(
       "https://modarchive.org/rss.php?request=uploads",
       { method: "GET" }
     );
     const rss = await rss_req.text();
-    latestId = rss.split("downloads.php?moduleid=")[1].split("#")[0];
+    latestId = Number(rss.split("downloads.php?moduleid=")[1].split("#")[0]);
   } catch {
     latestId = RANDOM_MAX;
   }
 
-  let initialSource = null;
+  let initialSource: Source | null = null;
   if (query.source === "modarchive" && query.id) {
     initialSource = modArchive(Number(query.id));
   } else if (query.source === "library" && query.path) {
@@ -200,12 +223,12 @@ export async function getServerSideProps({ query }) {
 
   return {
     props: {
-      trackId: query.trackId || null,
+      trackId: typeof query.trackId === "string" ? query.trackId : null,
       initialSource,
       backSideContent,
       latestId,
     },
   };
-}
+};
 
 export default Index;
