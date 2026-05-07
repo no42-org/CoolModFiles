@@ -7,10 +7,12 @@ import { modArchive } from "../../components/sources";
 function Embed() {
   const router = useRouter();
   const { trackId, title } = router.query;
+  const id = Array.isArray(trackId) ? trackId[0] : trackId;
+  const sharedTitle = Array.isArray(title) ? title[0] : title;
   return (
     <EmbedPlayer
-      initialSource={trackId ? modArchive(Number(trackId)) : null}
-      sharedTitle={title}
+      initialSource={id ? modArchive(Number(id)) : null}
+      sharedTitle={sharedTitle}
     />
   );
 }
