@@ -15,6 +15,7 @@ import { generateEmbedString, getRandomInt, showToast } from "../utils";
 import { DownloadButton } from "../icons";
 import {
   modArchive,
+  library,
   local,
   getBuffer,
   getPermalink,
@@ -23,13 +24,23 @@ import {
 } from "./sources";
 const DEFAULT_VOLUME = 80
 
-function pickRandomNext(source, { latestId, pickedFiles }) {
+async function pickRandomNext(source, { latestId, pickedFiles }) {
   switch (source.type) {
     case "modarchive":
       return modArchive(getRandomInt(0, latestId));
     case "local":
       if (!pickedFiles || pickedFiles.length === 0) return null;
       return local(pickedFiles[getRandomInt(0, pickedFiles.length - 1)]);
+    case "library": {
+      try {
+        const r = await fetch("/api/library/random");
+        if (!r.ok) return null;
+        const data = await r.json();
+        return data.path ? library(data.path) : null;
+      } catch {
+        return null;
+      }
+    }
     default:
       return modArchive(getRandomInt(0, latestId));
   }
@@ -225,13 +236,13 @@ const Player = React.forwardRef(function Player(
     showToast("copied to clipboard!");
   };
 
-  const playNext = () => {
+  const playNext = async () => {
     if (currentId < prevSources.length - 1) {
       const cid = currentId + 1;
       playFromSource(prevSources[cid]);
       setCurrentId(cid);
     } else {
-      const next = pickRandomNext(playingSource, {
+      const next = await pickRandomNext(playingSource, {
         latestId: maxId,
         pickedFiles,
       });

@@ -5,6 +5,7 @@ import Player from "../components/Player";
 import Footer from "../components/Footer";
 import SourceTabs from "../components/SourceTabs";
 import LocalCatalog from "../components/local/LocalCatalog";
+import LibraryCatalog from "../components/library/LibraryCatalog";
 import { modArchive } from "../components/sources";
 import {
   getRandomInt,
@@ -23,10 +24,20 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
   const [start, setStart] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("random");
   const [pickedFiles, setPickedFiles] = React.useState([]);
+  const [libraryPath, setLibraryPath] = React.useState("");
+  const [libraryAvailable, setLibraryAvailable] = React.useState(false);
   const playerRef = React.useRef(null);
   const [randomMsg, setRandomMsg] = React.useState(
     getRandomFromArray(getRandomInt(0, 158) ? MESSAGES : EE_MESSAGES)
   );
+
+  // Probe whether the server has LIBRARY_ROOT configured. The Library tab
+  // is hidden when the API returns 404.
+  React.useEffect(() => {
+    fetch("/api/library?path=")
+      .then((r) => setLibraryAvailable(r.ok))
+      .catch(() => setLibraryAvailable(false));
+  }, []);
 
   const getMessage = () => {
     if (isMobile) {
@@ -65,8 +76,15 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
           <SourceTabs
             activeTab={activeTab}
             onChange={setActiveTab}
-            showLibrary={false}
+            showLibrary={libraryAvailable}
           />
+          {activeTab === "library" && libraryAvailable && (
+            <LibraryCatalog
+              currentPath={libraryPath}
+              setCurrentPath={setLibraryPath}
+              onPlay={(source) => playerRef.current?.playSource(source)}
+            />
+          )}
           {activeTab === "local" && (
             <LocalCatalog
               pickedFiles={pickedFiles}

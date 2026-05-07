@@ -29,6 +29,30 @@ make help              # list all targets
 
 See [`.env.example`](.env.example) for the runtime environment variables.
 
+### Library mode (optional)
+
+The player can browse and play MOD files from a directory on the host machine
+in addition to ModArchive's random feed. Set `LIBRARY_ROOT` to an absolute path
+inside the container; the Library tab appears when this is configured.
+
+For local dev, drop a `mods/` folder in the repo root — `make run` will mount
+it read-only into the container at `/library` and set `LIBRARY_ROOT=/library`
+automatically.
+
+For production, mount your collection as a read-only Docker volume:
+
+```bash
+docker run -d -p 3000:3000 \
+  -v /path/to/mods:/library:ro \
+  -e LIBRARY_ROOT=/library \
+  -e GITHUB_TOKEN=... \
+  -e DOMAIN=https://your.domain \
+  ghcr.io/no42-org/coolmodfiles:latest
+```
+
+The `:ro` flag is required as defense-in-depth; the API itself is read-only,
+but the kernel-level mount enforcement removes any chance of accidental writes.
+
 ## License
 
 GNU General Public License[\*](https://www.gnu.org/licenses/gpl.txt)
