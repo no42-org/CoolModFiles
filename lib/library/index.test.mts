@@ -5,8 +5,8 @@ import path from "path";
 import { resolveSafe } from "./index.js";
 
 describe("resolveSafe", () => {
-  let temp;
-  let root;
+  let temp: string;
+  let root: string;
 
   beforeEach(async () => {
     // Fixture layout:

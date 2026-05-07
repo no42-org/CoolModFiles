@@ -423,6 +423,11 @@
   resolved "https://registry.npmjs.org/@types/estree/-/estree-1.0.9.tgz"
   integrity sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==
 
+"@types/file-saver@^2.0.7":
+  version "2.0.7"
+  resolved "https://registry.npmjs.org/@types/file-saver/-/file-saver-2.0.7.tgz"
+  integrity sha512-dNKVfHd/jk0SkR/exKGj2ggkB45MAkzvWCaqLUUgkyjITkGNzH8H+yUwr+BLJUBjZOe9w8X3wgmXhZDRg1ED6A==
+
 "@types/json-schema@^7.0.15":
   version "7.0.15"
   resolved "https://registry.npmjs.org/@types/json-schema/-/json-schema-7.0.15.tgz"
