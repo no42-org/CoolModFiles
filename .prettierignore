@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+build
+coverage
+mods
+package-lock.json
+yarn.lock
+public/libopenmpt.js
+public/chiptune2.js
+openspec

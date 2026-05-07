@@ -27,6 +27,10 @@ function EmbedPlayer({ initialSource, sharedTitle }) {
       setProgress(player.getPosition());
       if (player.getPosition() === 0 && player.duration() === 0) {
         setIsPlay(false);
+        // playFromSource is a hoisted function declaration; useInterval
+        // forwards via savedCallback ref so the closure here always sees
+        // the latest version.
+        // eslint-disable-next-line react-hooks/immutability
         playFromSource(initialSource || playingSource);
       }
     },
@@ -43,7 +47,7 @@ function EmbedPlayer({ initialSource, sharedTitle }) {
     setPlayer(new ChiptuneJsPlayer(new ChiptuneJsConfig(0)));
   };
 
-  const playFromSource = (source) => {
+  function playFromSource(source) {
     setTitle("Loading");
     setPlayingSource(source);
     getBuffer(source, player)
@@ -61,7 +65,7 @@ function EmbedPlayer({ initialSource, sharedTitle }) {
       .finally(() => {
         setLoading(false);
       });
-  };
+  }
 
   const togglePlay = () => {
     setIsPlay(!isPlay);
