@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 
-function useInterval(callback, delay) {
-  const savedCallback = useRef();
+function useInterval(callback: () => void, delay: number | null): void {
+  const savedCallback = useRef<(() => void) | undefined>(undefined);
   useEffect(() => {
     savedCallback.current = callback;
   }, [callback]);
   useEffect(() => {
     function tick() {
-      savedCallback.current();
+      savedCallback.current?.();
     }
     if (delay !== null) {
       let id = setInterval(tick, delay);
@@ -16,16 +16,16 @@ function useInterval(callback, delay) {
   }, [delay]);
 }
 
-function useKeyPress(targetKey) {
+function useKeyPress(targetKey: string): boolean {
   const [keyPressed, setKeyPressed] = useState(false);
 
-  function downHandler({ key }) {
+  function downHandler({ key }: KeyboardEvent) {
     if (key.toLowerCase() === targetKey.toLowerCase()) {
       setKeyPressed(true);
     }
   }
 
-  const upHandler = ({ key }) => {
+  const upHandler = ({ key }: KeyboardEvent) => {
     if (key.toLowerCase() === targetKey.toLowerCase()) {
       setKeyPressed(false);
     }
