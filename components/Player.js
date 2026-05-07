@@ -70,8 +70,15 @@ const Player = React.forwardRef(function Player(
   const [progress, setProgress] = React.useState(0);
   const [max, setMax] = React.useState(0);
   const [size, setSize] = React.useState("big");
-  const [prevSources, setPrevSources] = React.useState([]);
-  const [currentId, setCurrentId] = React.useState(-1);
+  // Per-source play history. prev/next navigate within the bucket of
+  // the currently playing source — pressing prev while a Library track
+  // is playing walks Library history only, and switching to Random
+  // resets the modarchive bucket without disturbing the others.
+  const [history, setHistory] = React.useState({
+    modarchive: { items: [], current: -1 },
+    library: { items: [], current: -1 },
+    local: { items: [], current: -1 },
+  });
   const playGenerationRef = React.useRef(0);
   const [repeat, setRepeat] = React.useState(false);
   const [helpDrawerOpen, setHelpDrawerOpen] = React.useState(false);
@@ -241,10 +248,14 @@ const Player = React.forwardRef(function Player(
   };
 
   const playNext = async () => {
-    if (currentId < prevSources.length - 1) {
-      const cid = currentId + 1;
-      playFromSource(prevSources[cid]);
-      setCurrentId(cid);
+    const bucket = history[playingSource.type] || { items: [], current: -1 };
+    if (bucket.current < bucket.items.length - 1) {
+      const cid = bucket.current + 1;
+      playFromSource(bucket.items[cid]);
+      setHistory((h) => ({
+        ...h,
+        [playingSource.type]: { ...h[playingSource.type], current: cid },
+      }));
     } else {
       const next = await pickRandomNext(playingSource, {
         latestId: maxId,
@@ -255,10 +266,14 @@ const Player = React.forwardRef(function Player(
   };
 
   const playPrevious = () => {
-    if (currentId != 0) {
-      const cid = currentId - 1;
-      playFromSource(prevSources[cid]);
-      setCurrentId(cid);
+    const bucket = history[playingSource.type] || { items: [], current: -1 };
+    if (bucket.current > 0) {
+      const cid = bucket.current - 1;
+      playFromSource(bucket.items[cid]);
+      setHistory((h) => ({
+        ...h,
+        [playingSource.type]: { ...h[playingSource.type], current: cid },
+      }));
     }
   };
 
@@ -274,10 +289,13 @@ const Player = React.forwardRef(function Player(
     player.pause();
     setPlayingSource(source);
     if (resetHistory) {
-      // Synchronous so the catalog tab switch lands on a fresh history.
+      // Synchronous so the catalog tab switch lands on a fresh bucket
+      // for THIS source's type. Other-source histories are preserved.
       // The .then below skips its own bookkeeping in this branch.
-      setPrevSources([source]);
-      setCurrentId(0);
+      setHistory((h) => ({
+        ...h,
+        [source.type]: { items: [source], current: 0 },
+      }));
     }
     getBuffer(source, player)
       .then((buffer) => {
@@ -294,12 +312,20 @@ const Player = React.forwardRef(function Player(
           window.history.pushState({ source }, "", permalink);
         }
         if (!resetHistory) {
-          const key = sourceKey(source);
-          if (!prevSources.some((s) => sourceKey(s) === key)) {
-            let cid = currentId + 1;
-            setCurrentId(cid);
-            setPrevSources([...prevSources, source]);
-          }
+          // Functional update reads latest bucket; if source is already
+          // in the bucket (replay or back-walk), this is a no-op.
+          setHistory((h) => {
+            const bucket = h[source.type] || { items: [], current: -1 };
+            const key = sourceKey(source);
+            if (bucket.items.some((s) => sourceKey(s) === key)) return h;
+            return {
+              ...h,
+              [source.type]: {
+                items: [...bucket.items, source],
+                current: bucket.items.length,
+              },
+            };
+          });
         }
         document.title = `🎶 ${player.metadata().title} - CoolModFiles.com 🎶`;
       })
@@ -445,7 +471,9 @@ const Player = React.forwardRef(function Player(
               changeSize={changeSize}
               playPrevious={playPrevious}
               playNext={playNext}
-              currentId={currentId}
+              currentId={
+                (history[playingSource.type] || { current: -1 }).current
+              }
               toggleLikedModsDrawer={toggleLikedModsDrawer}
               toggleHelpDrawer={toggleHelpDrawer}
               downloadTrack={downloadTrack}
