@@ -52,6 +52,18 @@ docker run -d -p 3000:3000 \
 The `:ro` flag is required as defense-in-depth; the API itself is read-only,
 but the kernel-level mount enforcement removes any chance of accidental writes.
 
+After bringing the server up with a populated library, run the security
+smoke test:
+
+```bash
+bash scripts/test-library-security.sh
+```
+
+It exercises path traversal protection, method allowlists, and the
+extension filter. Expects to find at least one valid module file in the
+library; `.txt` and similar non-allowlisted extensions should not be
+present at the root.
+
 ## License
 
 GNU General Public License[\*](https://www.gnu.org/licenses/gpl.txt)
