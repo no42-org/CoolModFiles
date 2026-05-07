@@ -42,7 +42,6 @@
     "sass": "^1.99.0"
   },
   "devDependencies": {
-    "@svgr/cli": "^8.1.0",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.5",
     "prettier": "^3.8.3",

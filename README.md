@@ -64,6 +64,14 @@ extension filter. Expects to find at least one valid module file in the
 library; `.txt` and similar non-allowlisted extensions should not be
 present at the root.
 
+### Icons
+
+The React components in `icons/` are pre-generated from SVG sources
+that aren't in this repo. To regenerate or add an icon, use a one-off
+`npx @svgr/cli <svg-source> -d icons/` invocation — `@svgr/cli` is no
+longer a permanent dev dependency since the icons are checked-in
+artifacts.
+
 ## License
 
 GNU General Public License[\*](https://www.gnu.org/licenses/gpl.txt)
