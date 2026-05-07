@@ -33,3 +33,8 @@ declare class ChiptuneJsPlayer {
 declare class ChiptuneJsConfig {
   constructor(repeatCount?: number, volume?: number);
 }
+
+// CSS-only side-effect imports (e.g. @fontsource/press-start-2p,
+// react-toastify/dist/ReactToastify.css, rc-slider/assets/index.css).
+declare module "*.css";
+declare module "@fontsource/*";
