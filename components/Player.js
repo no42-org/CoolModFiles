@@ -72,6 +72,7 @@ const Player = React.forwardRef(function Player(
   const [size, setSize] = React.useState("big");
   const [prevSources, setPrevSources] = React.useState([]);
   const [currentId, setCurrentId] = React.useState(-1);
+  const playGenerationRef = React.useRef(0);
   const [repeat, setRepeat] = React.useState(false);
   const [helpDrawerOpen, setHelpDrawerOpen] = React.useState(false);
   const [likedModsDrawerOpen, setLikedModsDrawerOpen] = React.useState(false);
@@ -263,6 +264,10 @@ const Player = React.forwardRef(function Player(
 
   const playFromSource = (source, options = {}) => {
     const { resetHistory = false } = options;
+    // Generation counter — protects against stale .then handlers from
+    // earlier playFromSource calls overwriting fresh state when the
+    // user switches tracks/sources before the previous fetch resolves.
+    const myGeneration = ++playGenerationRef.current;
     setLoading(true);
     setIsPlay(false);
     setTitle("Loading...");
@@ -276,6 +281,7 @@ const Player = React.forwardRef(function Player(
     }
     getBuffer(source, player)
       .then((buffer) => {
+        if (myGeneration !== playGenerationRef.current) return;
         setLoading(false);
         player.play(buffer);
         setMetaData(player.metadata());
@@ -298,6 +304,7 @@ const Player = React.forwardRef(function Player(
         document.title = `🎶 ${player.metadata().title} - CoolModFiles.com 🎶`;
       })
       .catch(() => {
+        if (myGeneration !== playGenerationRef.current) return;
         playFromSource(modArchive(getRandomInt(0, maxId)));
       });
   };
