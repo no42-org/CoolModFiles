@@ -1,17 +1,35 @@
 import React from "react";
 import styles from "./LibraryCatalog.module.scss";
-import { library } from "../sources";
+import { library, type LibrarySource } from "../sources";
 
-function joinPath(parts) {
+type Listing = {
+  dirs: string[];
+  files: string[];
+  truncated?: boolean;
+};
+
+type LibraryCatalogProps = {
+  currentPath: string;
+  setCurrentPath: React.Dispatch<React.SetStateAction<string>>;
+  onPlay: (source: LibrarySource) => void;
+};
+
+function joinPath(parts: string[]): string {
   return parts.filter(Boolean).join("/");
 }
 
-function LibraryCatalog({ currentPath, setCurrentPath, onPlay }) {
-  const [listing, setListing] = React.useState(null);
-  const [error, setError] = React.useState(null);
+function LibraryCatalog({
+  currentPath,
+  setCurrentPath,
+  onPlay,
+}: LibraryCatalogProps) {
+  const [listing, setListing] = React.useState<Listing | null>(null);
+  const [error, setError] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [searchResults, setSearchResults] = React.useState(null);
-  const searchTimer = React.useRef(null);
+  const [searchResults, setSearchResults] = React.useState<string[] | null>(
+    null
+  );
+  const searchTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Listing fetch — fires when currentPath changes (and search is empty)
   React.useEffect(() => {
@@ -20,8 +38,8 @@ function LibraryCatalog({ currentPath, setCurrentPath, onPlay }) {
     setError(null);
     fetch(`/api/library?path=${encodeURIComponent(currentPath)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data) => !cancelled && setListing(data))
-      .catch((status) => !cancelled && setError(status));
+      .then((data: Listing) => !cancelled && setListing(data))
+      .catch((status: number) => !cancelled && setError(status));
     return () => {
       cancelled = true;
     };
@@ -37,15 +55,17 @@ function LibraryCatalog({ currentPath, setCurrentPath, onPlay }) {
     searchTimer.current = setTimeout(() => {
       fetch(`/api/library/search?q=${encodeURIComponent(searchQuery)}`)
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-        .then((data) => setSearchResults(data.results || []))
+        .then((data: { results?: string[] }) => setSearchResults(data.results || []))
         .catch(() => setSearchResults([]));
     }, 250);
-    return () => searchTimer.current && clearTimeout(searchTimer.current);
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
   }, [searchQuery]);
 
   const segments = currentPath ? currentPath.split("/").filter(Boolean) : [];
 
-  const goTo = (path) => {
+  const goTo = (path: string) => {
     setCurrentPath(path);
     setSearchQuery("");
   };
