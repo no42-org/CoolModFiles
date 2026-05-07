@@ -9,7 +9,7 @@ import fs from "fs/promises";
 
 export { MODULE_EXTENSIONS, isModuleFile } from "../../components/sources";
 
-export const LIBRARY_ROOT = process.env.LIBRARY_ROOT || null;
+export const LIBRARY_ROOT: string | null = process.env.LIBRARY_ROOT || null;
 
 export const MAX_DEPTH = 32;
 export const MAX_LISTING = 1000;
@@ -27,9 +27,12 @@ export const MAX_RANDOM_SCAN = 50000;
  *
  * Returns the resolved real absolute path.
  */
-export async function resolveSafe(userPath, root) {
+export async function resolveSafe(
+  userPath: string,
+  root: string | null
+): Promise<string> {
   if (!root) {
-    const err = new Error("library_root_unset");
+    const err: NodeJS.ErrnoException = new Error("library_root_unset");
     err.code = "ENOENT";
     throw err;
   }
@@ -38,12 +41,12 @@ export async function resolveSafe(userPath, root) {
   // happens to traverse a symlink (e.g. /tmp → /private/tmp on macOS, or
   // any symlinked mount point) would falsely reject every legitimate
   // request as "outside root".
-  let rootResolved;
+  let rootResolved: string;
   try {
     rootResolved = await fs.realpath(path.resolve(root));
   } catch (e) {
-    if (e.code === "ENOENT") {
-      const err = new Error("library_root_unset");
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+      const err: NodeJS.ErrnoException = new Error("library_root_unset");
       err.code = "ENOENT";
       throw err;
     }
@@ -53,12 +56,12 @@ export async function resolveSafe(userPath, root) {
   const cleaned = String(userPath || "").replace(/^[/\\]+/, "");
   const requested = path.resolve(rootResolved, cleaned);
 
-  let real;
+  let real: string;
   try {
     real = await fs.realpath(requested);
   } catch (e) {
-    if (e.code === "ENOENT") {
-      const err = new Error("not_found");
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+      const err: NodeJS.ErrnoException = new Error("not_found");
       err.code = "ENOENT";
       throw err;
     }
@@ -66,7 +69,7 @@ export async function resolveSafe(userPath, root) {
   }
 
   if (real !== rootResolved && !real.startsWith(rootResolved + path.sep)) {
-    const err = new Error("path_outside_root");
+    const err: NodeJS.ErrnoException = new Error("path_outside_root");
     err.code = "EACCES";
     throw err;
   }
