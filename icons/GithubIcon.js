@@ -27,4 +27,3 @@ function SvgGithub(props) {
 }
 
 export default SvgGithub;
-

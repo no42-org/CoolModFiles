@@ -40,4 +40,3 @@ function SvgRepeat(props) {
 }
 
 export default SvgRepeat;
-

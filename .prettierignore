@@ -9,3 +9,4 @@ yarn.lock
 public/libopenmpt.js
 public/chiptune2.js
 openspec
+.github/workflows

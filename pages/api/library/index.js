@@ -24,8 +24,10 @@ export default async function handler(req, res) {
   try {
     dir = await resolveSafe(userPath, LIBRARY_ROOT);
   } catch (e) {
-    if (e.code === "ENOENT") return res.status(404).json({ error: "not_found" });
-    if (e.code === "EACCES") return res.status(403).json({ error: "forbidden" });
+    if (e.code === "ENOENT")
+      return res.status(404).json({ error: "not_found" });
+    if (e.code === "EACCES")
+      return res.status(403).json({ error: "forbidden" });
     return res.status(500).json({ error: "internal" });
   }
 

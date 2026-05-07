@@ -33,4 +33,3 @@ function SvgPlay(props) {
 }
 
 export default SvgPlay;
-

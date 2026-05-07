@@ -16,7 +16,9 @@
   font-size: 0.7rem;
   color: white;
   user-select: none;
-  transition: transform 0.15s, opacity 0.15s;
+  transition:
+    transform 0.15s,
+    opacity 0.15s;
   opacity: 0.6;
 
   &:hover {

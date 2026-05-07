@@ -42,7 +42,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "method_not_allowed" });
   }
 
-  const q = String(req.query.q || "").trim().toLowerCase();
+  const q = String(req.query.q || "")
+    .trim()
+    .toLowerCase();
   if (!q) {
     return res.status(400).json({ error: "missing_query" });
   }

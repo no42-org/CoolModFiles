@@ -27,4 +27,3 @@ function SvgClip(props) {
 }
 
 export default SvgClip;
-

@@ -78,16 +78,16 @@
 }
 
 @media screen and (max-width: 600px) {
-    .header {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    .banner {
-        align-self: center;
-        width: 100px;
-      }
-
-    .downloadButton {
-      display: none;
-    }
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
   }
+  .banner {
+    align-self: center;
+    width: 100px;
+  }
+
+  .downloadButton {
+    display: none;
+  }
+}

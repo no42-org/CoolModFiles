@@ -2,11 +2,7 @@ import React from "react";
 import styles from "./LikedMods.module.scss";
 import LikedMod from "./LikedMod";
 
-function LikedMods({
-  content,
-  onPlay,
-  removeFavoriteModRuntime,
-}) {
+function LikedMods({ content, onPlay, removeFavoriteModRuntime }) {
   if (!content.length) {
     return (
       <ol>

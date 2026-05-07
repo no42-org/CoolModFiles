@@ -10,13 +10,17 @@
   align-items: center;
   row-gap: 10px;
   width: 4%;
-  transition: width 0.5s, opacity 0.5s;
+  transition:
+    width 0.5s,
+    opacity 0.5s;
   opacity: 0;
   filter: alpha(opacity=40);
 }
 
 .contentVolume:hover {
-  transition: width 0.5s, opacity 0.5s;
+  transition:
+    width 0.5s,
+    opacity 0.5s;
   opacity: 0.8;
   width: 7%;
   filter: alpha(opacity=100);

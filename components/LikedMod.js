@@ -1,12 +1,7 @@
 import React from "react";
 import styles from "./LikedMods.module.scss";
 
-function LikedMod({
-  track,
-  index,
-  onPlay,
-  removeFavoriteModRuntime,
-}) {
+function LikedMod({ track, index, onPlay, removeFavoriteModRuntime }) {
   return (
     <li className={styles.likedMod} key={index}>
       <div

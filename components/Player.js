@@ -23,7 +23,7 @@ import {
   isFavoritable,
   getEmbedHtml,
 } from "./sources";
-const DEFAULT_VOLUME = 80
+const DEFAULT_VOLUME = 80;
 
 async function pickRandomNext(source, { latestId, pickedFiles }) {
   switch (source.type) {
@@ -55,7 +55,7 @@ const Player = React.forwardRef(function Player(
   const [player, setPlayer] = React.useState(null);
   const [volume, setVolume] = React.useState(() => {
     const rememberedVolume = parseInt(localStorage.getItem("volume"));
-    if(rememberedVolume > -1) return rememberedVolume
+    if (rememberedVolume > -1) return rememberedVolume;
     return DEFAULT_VOLUME;
   });
   const [unmuteVolume, setUnmuteVolume] = React.useState(DEFAULT_VOLUME);
@@ -63,8 +63,7 @@ const Player = React.forwardRef(function Player(
   const [playingSource, setPlayingSource] = React.useState(
     () => initialSource || modArchive(getRandomInt(0, latestId))
   );
-  const trackId =
-    playingSource.type === "modarchive" ? playingSource.id : null;
+  const trackId = playingSource.type === "modarchive" ? playingSource.id : null;
   const [metaData, setMetaData] = React.useState({});
   const [loading, setLoading] = React.useState(true);
   const [title, setTitle] = React.useState("Loading...");
@@ -125,7 +124,7 @@ const Player = React.forwardRef(function Player(
     if (helpKey || quitKey) toggleHelpDrawer();
     if (repeatKey) {
       showToast(`repeat ${!repeat ? "on" : "off"}`);
-      player.setRepeatCount(!repeat ? -1 : 0)
+      player.setRepeatCount(!repeat ? -1 : 0);
       setRepeat(!repeat);
     }
     if (downloadKey) downloadTrack();
@@ -185,10 +184,12 @@ const Player = React.forwardRef(function Player(
   );
 
   React.useEffect(() => {
-    const jsPlayer = new ChiptuneJsPlayer(new ChiptuneJsConfig(repeat ? -1 : 0, volume));
+    const jsPlayer = new ChiptuneJsPlayer(
+      new ChiptuneJsConfig(repeat ? -1 : 0, volume)
+    );
     setPlayer(jsPlayer);
-    console.log("%c " + jsPlayer.getLibraryVersion(), "color: red")
-    console.log("%c " + jsPlayer.getCoreVersion(), "color: red")
+    console.log("%c " + jsPlayer.getLibraryVersion(), "color: red");
+    console.log("%c " + jsPlayer.getCoreVersion(), "color: red");
   }, []);
 
   React.useEffect(() => {
@@ -365,7 +366,7 @@ const Player = React.forwardRef(function Player(
     for (let mod of favoriteModsRuntime) {
       const res = await fetch(
         `https://api.modarchive.org/downloads.php?moduleid=${mod.id}`
-        );
+      );
       const blob = await res.blob();
       await mods.file(`${mod.title || mod.id}.mod`, blob, { binary: true });
     }
@@ -452,7 +453,7 @@ const Player = React.forwardRef(function Player(
                 <a href="#">Favorite Mods</a>
               </h2>
               <div className={styles.downloadAll}>
-              <DownloadButton
+                <DownloadButton
                   onClick={downloadFavoriteMods}
                   height="25"
                   width="25"

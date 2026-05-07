@@ -27,4 +27,3 @@ function SvgArrowSimple(props) {
 }
 
 export default SvgArrowSimple;
-

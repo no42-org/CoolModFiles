@@ -68,27 +68,34 @@ function PlayerBig({
   }, []);
 
   React.useEffect(() => {
-    document.getElementById("repeat").classList.toggle(styles.deactive, !repeat);
+    document
+      .getElementById("repeat")
+      .classList.toggle(styles.deactive, !repeat);
   }, [repeat]);
 
   const likeCurrentTrack = (favoriteModsRuntime, updateFavoriteModsRuntime) => {
     let trackIdInt = parseInt(trackId);
     if (favoriteModsRuntime.length) {
-      favoriteModsRuntime = favoriteModsRuntime.filter((track) => track.id !== trackIdInt)
+      favoriteModsRuntime = favoriteModsRuntime.filter(
+        (track) => track.id !== trackIdInt
+      );
       let newFavoriteModsRuntime = [
-        ...favoriteModsRuntime, {
+        ...favoriteModsRuntime,
+        {
           id: trackIdInt,
-          ...(metaData.artist && {artist: metaData.artist}),
-          ...(metaData.title && {title: metaData.title}),
-        }
+          ...(metaData.artist && { artist: metaData.artist }),
+          ...(metaData.title && { title: metaData.title }),
+        },
       ];
       updateFavoriteModsRuntime(newFavoriteModsRuntime);
     } else {
-      updateFavoriteModsRuntime([{
-        id: trackIdInt,
-        ...(metaData.artist && {artist: metaData.artist}),
-        ...(metaData.title && {title: metaData.title}),
-      }]);
+      updateFavoriteModsRuntime([
+        {
+          id: trackIdInt,
+          ...(metaData.artist && { artist: metaData.artist }),
+          ...(metaData.title && { title: metaData.title }),
+        },
+      ]);
     }
   };
 
@@ -98,8 +105,8 @@ function PlayerBig({
         <div className={styles.contentVolume}>
           <span className={styles.volumePercent}>{volume}%</span>
           <Slider
-            railStyle={{backgroundColor: "white", width: 6}}
-            trackStyle={{backgroundColor: "#bd00ff", width: 6}}
+            railStyle={{ backgroundColor: "white", width: 6 }}
+            trackStyle={{ backgroundColor: "#bd00ff", width: 6 }}
             handleStyle={{
               borderColor: "#bd00ff",
               backgroundColor: "#bd00ff",
@@ -136,7 +143,10 @@ function PlayerBig({
                   height="30"
                   width="60"
                   onClick={() =>
-                    likeCurrentTrack(favoriteModsRuntime, updateFavoriteModsRuntime)
+                    likeCurrentTrack(
+                      favoriteModsRuntime,
+                      updateFavoriteModsRuntime
+                    )
                   }
                 />
               )}
@@ -152,12 +162,14 @@ function PlayerBig({
                 width="60"
                 onClick={() => {
                   setDropDownClass(
-                    dropDownClass === dropDownClose ? dropDownOpen : dropDownClose
+                    dropDownClass === dropDownClose
+                      ? dropDownOpen
+                      : dropDownClose
                   );
                 }}
               />
               <div className={dropDownClass}>
-                <CodeIcon height="30" width="30" onClick={() => copyEmbed()}/>
+                <CodeIcon height="30" width="30" onClick={() => copyEmbed()} />
               </div>
             </div>
           </div>
@@ -181,11 +193,11 @@ function PlayerBig({
               ) : null}
             </ul>
           ) : (
-            <LoadingState/>
+            <LoadingState />
           )}
           <Slider
-            railStyle={{backgroundColor: "white", height: 6}}
-            trackStyle={{backgroundColor: "#bd00ff", height: 6}}
+            railStyle={{ backgroundColor: "white", height: 6 }}
+            trackStyle={{ backgroundColor: "#bd00ff", height: 6 }}
             handleStyle={{
               borderColor: "#bd00ff",
               backgroundColor: "#bd00ff",
@@ -199,7 +211,9 @@ function PlayerBig({
             }}
           />
           <div className={styles.seekNumbers}>
-            <span>{moment().startOf("day").seconds(progress).format("mm:ss")}</span>
+            <span>
+              {moment().startOf("day").seconds(progress).format("mm:ss")}
+            </span>
             <span>{moment().startOf("day").seconds(max).format("mm:ss")}</span>
           </div>
           <div className={styles.actionButtonsWrapper}>
@@ -264,7 +278,7 @@ function PlayerBig({
                 width="30"
                 onClick={() => {
                   showToast(`repeat ${!repeat ? "on" : "off"}`);
-                  player.setRepeatCount(!repeat ? -1 : 0)
+                  player.setRepeatCount(!repeat ? -1 : 0);
                   setRepeat(!repeat);
                 }}
               />

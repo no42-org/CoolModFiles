@@ -6,8 +6,17 @@
 //   { type: "local",      file: File }
 
 export const MODULE_EXTENSIONS = [
-  ".mod", ".xm", ".s3m", ".it", ".mptm",
-  ".stm", ".mtm", ".669", ".med", ".okt", ".ult",
+  ".mod",
+  ".xm",
+  ".s3m",
+  ".it",
+  ".mptm",
+  ".stm",
+  ".mtm",
+  ".669",
+  ".med",
+  ".okt",
+  ".ult",
 ];
 
 export function isModuleFile(filename) {

@@ -27,4 +27,3 @@ function SvgShare(props) {
 }
 
 export default SvgShare;
-

@@ -33,4 +33,3 @@ function SvgArrow(props) {
 }
 
 export default SvgArrow;
-

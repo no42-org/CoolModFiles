@@ -33,4 +33,3 @@ function SvgRight(props) {
 }
 
 export default SvgRight;
-

@@ -27,4 +27,3 @@ function SvgQuestion(props) {
 }
 
 export default SvgQuestion;
-

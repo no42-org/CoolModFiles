@@ -3,11 +3,7 @@
 
 import fs from "fs/promises";
 import { createReadStream } from "fs";
-import {
-  LIBRARY_ROOT,
-  isModuleFile,
-  resolveSafe,
-} from "../../../lib/library";
+import { LIBRARY_ROOT, isModuleFile, resolveSafe } from "../../../lib/library";
 
 export const config = {
   api: {
@@ -33,8 +29,10 @@ export default async function handler(req, res) {
   try {
     filepath = await resolveSafe(userPath, LIBRARY_ROOT);
   } catch (e) {
-    if (e.code === "ENOENT") return res.status(404).json({ error: "not_found" });
-    if (e.code === "EACCES") return res.status(403).json({ error: "forbidden" });
+    if (e.code === "ENOENT")
+      return res.status(404).json({ error: "not_found" });
+    if (e.code === "EACCES")
+      return res.status(403).json({ error: "forbidden" });
     return res.status(500).json({ error: "internal" });
   }
 

@@ -15,8 +15,7 @@ function EmbedPlayer({ initialSource, sharedTitle }) {
   const [playingSource, setPlayingSource] = React.useState(
     () => initialSource || modArchive(42)
   );
-  const trackId =
-    playingSource.type === "modarchive" ? playingSource.id : null;
+  const trackId = playingSource.type === "modarchive" ? playingSource.id : null;
   const [loading, setLoading] = React.useState(true);
   const [title, setTitle] = React.useState(sharedTitle);
   const [progress, setProgress] = React.useState(0);

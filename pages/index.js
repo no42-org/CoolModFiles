@@ -68,14 +68,13 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
   }, [enterKey]);
 
   React.useEffect(() => {
-    if (sessionStorage.getItem("refresh") === "true"){
-      setRandomMsg(getRandomFromArray(REFRESH_MESSAGES))
+    if (sessionStorage.getItem("refresh") === "true") {
+      setRandomMsg(getRandomFromArray(REFRESH_MESSAGES));
     } else {
-      sessionStorage.setItem("refresh", "true")
+      sessionStorage.setItem("refresh", "true");
     }
-    document.getElementById(
-      "app"
-    ).style.backgroundImage = `url('/images/${getRandomFromArray(BG_IMAGES)}')`;
+    document.getElementById("app").style.backgroundImage =
+      `url('/images/${getRandomFromArray(BG_IMAGES)}')`;
   }, []);
 
   if (start) {

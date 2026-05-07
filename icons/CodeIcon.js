@@ -40,4 +40,3 @@ function SvgCode(props) {
 }
 
 export default SvgCode;
-

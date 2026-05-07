@@ -40,4 +40,3 @@ function SvgDownload(props) {
 }
 
 export default SvgDownload;
-

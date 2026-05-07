@@ -33,4 +33,3 @@ function SvgPause(props) {
 }
 
 export default SvgPause;
-

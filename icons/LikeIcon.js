@@ -46,4 +46,3 @@ function LikeButton(props) {
 }
 
 export default LikeButton;
-
