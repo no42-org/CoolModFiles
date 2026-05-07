@@ -6,7 +6,7 @@ import Footer from "../components/Footer";
 import SourceTabs from "../components/SourceTabs";
 import LocalCatalog from "../components/local/LocalCatalog";
 import LibraryCatalog from "../components/library/LibraryCatalog";
-import { modArchive } from "../components/sources";
+import { modArchive, library } from "../components/sources";
 import {
   getRandomInt,
   getRandomFromArray,
@@ -38,6 +38,18 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
       .then((r) => setLibraryAvailable(r.ok))
       .catch(() => setLibraryAvailable(false));
   }, []);
+
+  // When arriving via a library permalink, switch to the Library tab and
+  // open the catalog at the file's parent directory so the breadcrumb
+  // reflects context.
+  React.useEffect(() => {
+    if (initialSource?.type === "library" && libraryAvailable) {
+      setActiveTab("library");
+      const parts = initialSource.path.split("/");
+      parts.pop();
+      setLibraryPath(parts.join("/"));
+    }
+  }, [initialSource, libraryAvailable]);
 
   const getMessage = () => {
     if (isMobile) {
@@ -118,44 +130,49 @@ function Index({ trackId, initialSource, backSideContent, latestId }) {
   );
 }
 
-Index.getInitialProps = async ({ query }) => {
-  const gh_req = await fetch("https://api.github.com/graphql", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-    },
-    body: JSON.stringify({
-      query: `{
-      repository(owner: "orhun", name: "CoolModFiles") {
-        content: object(expression: "master:HELP.md") {
-          ... on Blob {
-            text
-          }
-        }
-      }
-    }`,
-    }),
-  });
-  const rss_req = await fetch(
-    "https://modarchive.org/rss.php?request=uploads",
-    {
-      method: "GET",
-    }
-  );
-  const json = await gh_req.json();
-  const rss = await rss_req.text();
+export async function getServerSideProps({ query }) {
+  const fs = await import("fs/promises");
+  const path = await import("path");
+
+  let backSideContent = "";
+  try {
+    backSideContent = await fs.readFile(
+      path.join(process.cwd(), "HELP.md"),
+      "utf8"
+    );
+  } catch {
+    backSideContent = "";
+  }
+
   let latestId;
   try {
+    const rss_req = await fetch(
+      "https://modarchive.org/rss.php?request=uploads",
+      { method: "GET" }
+    );
+    const rss = await rss_req.text();
     latestId = rss.split("downloads.php?moduleid=")[1].split("#")[0];
   } catch {
     latestId = RANDOM_MAX;
   }
+
+  let initialSource = null;
+  if (query.source === "modarchive" && query.id) {
+    initialSource = modArchive(Number(query.id));
+  } else if (query.source === "library" && query.path) {
+    initialSource = library(String(query.path));
+  } else if (query.trackId) {
+    initialSource = modArchive(Number(query.trackId));
+  }
+
   return {
-    trackId: query.trackId,
-    initialSource: query.trackId ? modArchive(Number(query.trackId)) : null,
-    backSideContent: json.data?.repository?.content?.text,
-    latestId,
+    props: {
+      trackId: query.trackId || null,
+      initialSource,
+      backSideContent,
+      latestId,
+    },
   };
-};
+}
 
 export default Index;

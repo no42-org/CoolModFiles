@@ -1,6 +1,14 @@
 ## What is this?
 
-It's a web player that works by simply fetching a random module from [modarchive.org](https://modarchive.org) and playing it. **No black magic involved!**
+It's a web player for chiptune **MOD** files. Pick a source from the tab strip at the top — random tracks from [modarchive.org](https://modarchive.org), a server-curated **Library**, or your **Local** files dropped right into the browser.
+
+## Sources
+
+- **Random** — plays a random module from [modarchive.org](https://modarchive.org). The default.
+- **Library** — browses a server-curated collection (only visible when the operator has configured one).
+- **Local** — drop your own MOD files into the browser. Files stay on your device for the session — nothing is uploaded.
+
+`n` / random-next and auto-advance pick from whatever source is currently playing, so a Library track skips to another Library track and a Local track shuffles within your dropped files.
 
 ## How do I use it?
 
@@ -19,9 +27,14 @@ You can whether use your mouse/touchpad to click on the cyberpunk-themed cool ic
 | [shift]          | minimize/maximize the player |
 | [1]              | turn on/off repeat           |
 | [d]              | download the song            |
-| [s]              | open the share menu          |
 | [e]              | copy the embed code          |
 | [/][q]           | show this message            |
+
+## Sharing
+
+The URL updates automatically as tracks change. Copy the address bar to share a track — modarchive uses `?trackId=N` (and the equivalent `?source=modarchive&id=N`), library uses `?source=library&path=…`. Local files have no shareable URL.
+
+The embed code (`e` key) builds an `<iframe>` you can paste into a webpage. Modarchive embeds use `/embed/N`; library embeds use `/embed/library/<path>`. Local files are not embeddable.
 
 ## What are modules?
 

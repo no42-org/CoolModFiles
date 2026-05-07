@@ -11,7 +11,7 @@ import LikedMods from "./LikedMods";
 
 import { ToastContainer } from "react-toastify";
 import { useInterval, useKeyPress } from "../hooks";
-import { generateEmbedString, getRandomInt, showToast } from "../utils";
+import { getRandomInt, showToast } from "../utils";
 import { DownloadButton } from "../icons";
 import {
   modArchive,
@@ -21,6 +21,7 @@ import {
   getPermalink,
   sourceKey,
   isFavoritable,
+  getEmbedHtml,
 } from "./sources";
 const DEFAULT_VOLUME = 80
 
@@ -232,7 +233,12 @@ const Player = React.forwardRef(function Player(
   };
 
   const copyEmbed = () => {
-    copy(generateEmbedString(trackId, title));
+    const html = getEmbedHtml(playingSource, title, process.env.DOMAIN);
+    if (!html) {
+      showToast("can't embed local files");
+      return;
+    }
+    copy(html);
     showToast("copied to clipboard!");
   };
 

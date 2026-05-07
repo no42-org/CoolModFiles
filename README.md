@@ -20,7 +20,7 @@ The programmer friends' idea, unfortunately, was beaten by [modarchive.org](http
 ## Development
 
 ```bash
-cp .env.example .env   # fill in GITHUB_TOKEN and DOMAIN
+cp .env.example .env   # fill in DOMAIN (and LIBRARY_ROOT if used)
 make build             # build the Next.js app
 make image             # build the Docker image
 make run               # run the image locally on :3000 (uses .env if present)
@@ -45,7 +45,6 @@ For production, mount your collection as a read-only Docker volume:
 docker run -d -p 3000:3000 \
   -v /path/to/mods:/library:ro \
   -e LIBRARY_ROOT=/library \
-  -e GITHUB_TOKEN=... \
   -e DOMAIN=https://your.domain \
   ghcr.io/no42-org/coolmodfiles:latest
 ```

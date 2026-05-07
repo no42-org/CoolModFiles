@@ -54,6 +54,33 @@ export function isFavoritable(source) {
   return source.type !== "local";
 }
 
+export function getEmbedUrl(source, domain) {
+  const base = domain || "";
+  switch (source.type) {
+    case "modarchive":
+      return `${base}/embed/${source.id}`;
+    case "library": {
+      const segments = source.path.split("/").map(encodeURIComponent);
+      return `${base}/embed/library/${segments.join("/")}`;
+    }
+    case "local":
+      return null;
+    default:
+      return null;
+  }
+}
+
+export function getEmbedHtml(source, title, domain) {
+  const url = getEmbedUrl(source, domain);
+  if (!url) return null;
+  return `<iframe
+  width="100%"
+  height="200"
+  src="${url}?title=${encodeURIComponent(title)}"
+  frameborder="0"
+></iframe>`;
+}
+
 export function sourceKey(source) {
   switch (source.type) {
     case "modarchive":
