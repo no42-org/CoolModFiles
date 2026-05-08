@@ -19,26 +19,24 @@ function useInterval(callback: () => void, delay: number | null): void {
 function useKeyPress(targetKey: string): boolean {
   const [keyPressed, setKeyPressed] = useState(false);
 
-  function downHandler({ key }: KeyboardEvent) {
-    if (key.toLowerCase() === targetKey.toLowerCase()) {
-      setKeyPressed(true);
-    }
-  }
-
-  const upHandler = ({ key }: KeyboardEvent) => {
-    if (key.toLowerCase() === targetKey.toLowerCase()) {
-      setKeyPressed(false);
-    }
-  };
-
   useEffect(() => {
+    const downHandler = ({ key }: KeyboardEvent) => {
+      if (key.toLowerCase() === targetKey.toLowerCase()) {
+        setKeyPressed(true);
+      }
+    };
+    const upHandler = ({ key }: KeyboardEvent) => {
+      if (key.toLowerCase() === targetKey.toLowerCase()) {
+        setKeyPressed(false);
+      }
+    };
     window.addEventListener("keydown", downHandler);
     window.addEventListener("keyup", upHandler);
     return () => {
       window.removeEventListener("keydown", downHandler);
       window.removeEventListener("keyup", upHandler);
     };
-  }, []);
+  }, [targetKey]);
   return keyPressed;
 }
 
