@@ -491,7 +491,11 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         </div>
       )}
       {size === "big" ? (
-        <div className={styles.playerWrapper}>
+        <div
+          className={`${styles.playerWrapper} ${
+            drawerOpen ? styles.playerWrapperDrawerOpen : ""
+          }`}
+        >
           <div className={styles.player}>
             <PlayerBig
               title={title}

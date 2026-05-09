@@ -1,5 +1,17 @@
 .playerWrapper {
   position: relative;
+  width: 470px;
+  transition: width 0.5s ease;
+}
+
+// Side-by-side mode (≥1440px): when the drawer is open, expand the
+// wrapper to fit player + drawer. Flex-centering on #app then
+// centres the wider wrapper as a unit, so the visual combo lands at
+// viewport centre instead of the player alone.
+@media screen and (min-width: 1440px) {
+  .playerWrapperDrawerOpen {
+    width: 940px;
+  }
 }
 
 .player {
@@ -21,31 +33,48 @@
   z-index: 50;
 }
 
+// The drawer ('.playerBack') has two layout modes driven by viewport
+// width. Below 1440px we use OVERLAY mode (drawer covers the player
+// when open) so the player+drawer combo never extends past the
+// viewport. At/above 1440px we use SIDE-BY-SIDE mode (drawer slides
+// out into the wrapper's expanded right half).
+// Width matches player; on mobile both shrink via max-width: 90%.
 .playerBack {
   position: absolute;
   display: flex;
   flex-direction: column;
-  top: 0%;
-  left: 0%;
-  z-index: 49;
+  top: 0;
   height: 100%;
-  width: 100%;
+  width: 470px;
   background-color: black;
   border-radius: 5px;
+  padding: 10px;
   visibility: visible;
-  padding: 10px 10px 10px 10px;
+  transition: left 0.5s ease;
+
+  // Overlay mode (default). Closed = off-screen right of player,
+  // open = covers the player. Drawer must sit ABOVE the player.
+  left: 470px;
+  z-index: 51;
 }
 
-.slideRight {
-  animation-name: slideRight;
-  animation-duration: 0.5s;
-  animation-fill-mode: forwards;
+.playerBackOpen {
+  // Overlay open position
+  left: 0;
 }
 
-.slideLeft {
-  animation-name: slideLeft;
-  animation-duration: 0.5s;
-  animation-fill-mode: forwards;
+@media screen and (min-width: 1440px) {
+  .playerBack {
+    // Side-by-side mode. Closed = behind the player (z-index 49),
+    // open = slides into the right half of the expanded wrapper.
+    left: 0;
+    z-index: 49;
+  }
+  .playerBackOpen {
+    // Side-by-side open: drawer sits to the right of the player
+    // inside the now-940px wrapper.
+    left: 470px;
+  }
 }
 
 .fancyHr {
@@ -55,24 +84,6 @@
 .downloadAll {
   svg {
     cursor: pointer;
-  }
-}
-
-@keyframes slideRight {
-  0% {
-    left: 0%;
-  }
-  100% {
-    left: 100%;
-  }
-}
-
-@keyframes slideLeft {
-  0% {
-    left: 100%;
-  }
-  100% {
-    left: 0%;
   }
 }
 
@@ -94,11 +105,18 @@
 }
 
 @media screen and (max-width: 600px) {
-  .player {
-    max-width: 90%;
+  .playerWrapper {
+    width: 90vw;
+    max-width: 470px;
   }
-
+  .player {
+    width: 100%;
+  }
   .playerBack {
-    max-width: 90%;
+    width: 100%;
+    left: 100%;
+  }
+  .playerBackOpen {
+    left: 0;
   }
 }

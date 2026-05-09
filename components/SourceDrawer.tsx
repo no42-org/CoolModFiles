@@ -74,18 +74,9 @@ function SourceDrawer({
     if (escKey && open) onClose();
   }, [escKey, open]);
 
-  // Animation classes are only applied after the first open. Before
-  // that, the drawer sits at its base position (left:0, behind the
-  // player) — visible to the DOM but masked by the player's higher
-  // z-index — so the user never sees a phantom closing animation
-  // on initial page load.
-  const [hasOpened, setHasOpened] = React.useState(false);
-  React.useEffect(() => {
-    if (open) setHasOpened(true);
-  }, [open]);
   const drawerClass = [
     player.playerBack,
-    hasOpened ? (open ? player.slideRight : player.slideLeft) : "",
+    open ? player.playerBackOpen : "",
   ]
     .filter(Boolean)
     .join(" ");
