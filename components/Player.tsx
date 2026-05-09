@@ -7,6 +7,7 @@ import styles from "./Player.module.scss";
 import PlayerBig from "./PlayerBig";
 import PlayerMin from "./PlayerMin";
 import SourceDrawer, { type DrawerTabId } from "./SourceDrawer";
+import { type ChartId } from "./modarchive/ModArchivePane";
 
 import { ToastContainer } from "react-toastify";
 import { useInterval, useKeyPress } from "../hooks";
@@ -24,6 +25,7 @@ import {
   type SourceHistoryBuckets,
 } from "./sources";
 import type { FavoriteTrack } from "./LikedMod";
+import type { ModItem } from "../lib/modarchive/types";
 
 const DEFAULT_VOLUME = 80;
 
@@ -106,7 +108,16 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   // Source-drawer state — replaces the two mutually-exclusive
   // helpDrawerOpen/likedModsDrawerOpen flags from the previous design.
   const [drawerOpen, setDrawerOpen] = React.useState(false);
-  const [drawerTab, setDrawerTab] = React.useState<DrawerTabId>("random");
+  const [drawerTab, setDrawerTab] = React.useState<DrawerTabId>("modarchive");
+
+  // Chart-aware playback context. `currentChart` describes which Mod
+  // Archive list the playing track came from; "random" is the default
+  // (free-form random play). `chartListRef` holds the ordered list so
+  // `n` can walk it sequentially with loop-at-end. Both are reset to
+  // random whenever the user explicitly clicks "Play random" or arrives
+  // via a permalink.
+  const [currentChart, setCurrentChart] = React.useState<ChartId>("random");
+  const chartListRef = React.useRef<ModItem[] | null>(null);
 
   // Catalog state lifted from pages/index.tsx so the drawer (which
   // hosts the catalogs) can live inside this component's render tree.
@@ -277,6 +288,24 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   };
 
   const playNext = async () => {
+    // Chart-aware fast path: when playing a Mod Archive chart track,
+    // walk the chart list sequentially and loop at the end. We bypass
+    // the per-source-type history bucket here — the list IS the order.
+    if (
+      playingSource.type === "modarchive" &&
+      currentChart !== "random" &&
+      chartListRef.current &&
+      chartListRef.current.length > 0
+    ) {
+      const list = chartListRef.current;
+      const playingId = playingSource.id;
+      const idx = list.findIndex((item) => item.id === playingId);
+      const nextIdx = idx === -1 ? 0 : (idx + 1) % list.length;
+      const nextItem = list[nextIdx];
+      playFromSource(modArchive(nextItem.id), { confirmToast: true });
+      return;
+    }
+
     const bucket = history[playingSource.type] || { items: [], current: -1 };
     if (bucket.current < bucket.items.length - 1) {
       const cid = bucket.current + 1;
@@ -392,8 +421,20 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   };
 
   const handlePlayRandom = () => {
+    setCurrentChart("random");
+    chartListRef.current = null;
     const next = modArchive(getRandomInt(0, maxId));
     playFromSource(next, { resetHistory: true, confirmToast: true });
+  };
+
+  const handlePlayChart = (
+    item: ModItem,
+    fullList: ModItem[],
+    chartId: ChartId
+  ) => {
+    chartListRef.current = fullList;
+    setCurrentChart(chartId);
+    playFromSource(modArchive(item.id), { confirmToast: true });
   };
 
   const downloadTrack = async () => {
@@ -535,6 +576,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             showLibrary={libraryAvailable}
             helpContent={backSideContent}
             onPlayRandom={handlePlayRandom}
+            onPlayChart={handlePlayChart}
             libraryProps={{
               currentPath: libraryPath,
               setCurrentPath: setLibraryPath,

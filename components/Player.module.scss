@@ -5,12 +5,12 @@
 }
 
 // Side-by-side mode (≥1440px): when the drawer is open, expand the
-// wrapper to fit player + drawer. Flex-centering on #app then
-// centres the wider wrapper as a unit, so the visual combo lands at
-// viewport centre instead of the player alone.
+// wrapper to fit player (470px) + drawer (540px). Flex-centering on
+// #app then centres the wider wrapper as a unit, so the visual combo
+// lands at viewport centre instead of the player alone.
 @media screen and (min-width: 1440px) {
   .playerWrapperDrawerOpen {
-    width: 940px;
+    width: 1010px;
   }
 }
 
@@ -49,7 +49,7 @@
   top: 0;
   left: 0;
   height: 100%;
-  width: 470px;
+  width: 540px;
   background-color: black;
   border-radius: 5px;
   padding: 10px;

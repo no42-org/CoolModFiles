@@ -1,12 +1,18 @@
 ## What is this?
 
-It's a web player for chiptune **MOD** files. Open the side drawer (the playlist icon in the player footer) to pick a source — random tracks from [modarchive.org](https://modarchive.org), a server-curated **Library**, your **Local** files, your **Favorites**, or this Help.
+It's a web player for chiptune **MOD** files. Open the side drawer (the playlist icon in the player footer) to pick a source — tracks from [modarchive.org](https://modarchive.org), a server-curated **Library**, your **Local** files, your **Favorites**, or this Help.
 
 ## Sources
 
-The drawer has five tabs: **Random**, **Library**, **Local**, **♥ Favorites**, **? Help**.
+The drawer has five tabs: **Mod Archive**, **Library**, **Local**, **♥ Favorites**, **? Help**.
 
-- **Random** — click "🎲 Play random" to play a random module from [modarchive.org](https://modarchive.org). Each click resets the prev/next history.
+- **Mod Archive** — drill-in menu for ways to find tracks on [modarchive.org](https://modarchive.org):
+  - **🎲 Random** — click "Play random" to play a random module. Each click resets prev/next history.
+  - **⭐ Top Favorites** — most-favorited mods on the site.
+  - **⬇ Most Downloads** — most-downloaded mods.
+  - **🏆 Most Revered** — highest-rated mods.
+  - **🎤 Artist Charts** — top artists; tap to see and play their mods.
+  - **👥 Member Charts** — top contributing members; tap a row to open their modarchive.org profile.
 - **Library** — browses a server-curated collection (only visible when the operator has configured one).
 - **Local** — drop your own MOD files into the browser. Files stay on your device for the session — nothing is uploaded.
 - **♥ Favorites** — your saved tracks. Click any to play.
@@ -14,7 +20,7 @@ The drawer has five tabs: **Random**, **Library**, **Local**, **♥ Favorites**,
 
 The drawer stays open after you pick a track so you can keep browsing. Close it with the × button in the corner or the `Esc` key.
 
-`n` / random-next and auto-advance pick from whatever source is currently playing, so a Library track skips to another Library track and a Local track shuffles within your dropped files.
+`n` / random-next and auto-advance pick from whatever source is currently playing. When you pick a track from a Mod Archive chart (Top Favorites, Most Downloads, Most Revered, or an artist's mods), `n` walks the chart in order and loops back to the first track at the end. A Library track skips to another Library track; a Local track shuffles within your dropped files.
 
 ## How do I use it?
 

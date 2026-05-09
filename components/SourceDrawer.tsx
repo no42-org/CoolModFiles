@@ -10,13 +10,15 @@ import LibraryCatalog from "./library/LibraryCatalog";
 import LocalCatalog from "./local/LocalCatalog";
 import LikedMods from "./LikedMods";
 import BackSide from "./BackSide";
+import ModArchivePane, { type ChartId } from "./modarchive/ModArchivePane";
 import { DownloadButton } from "../icons";
 import { useKeyPress } from "../hooks";
 import type { LibrarySource, LocalSource } from "./sources";
 import type { FavoriteTrack } from "./LikedMod";
+import type { ModItem } from "../lib/modarchive/types";
 
 export type DrawerTabId =
-  | "random"
+  | "modarchive"
   | "library"
   | "local"
   | "favorites"
@@ -50,12 +52,13 @@ type SourceDrawerProps = {
   showLibrary: boolean;
   helpContent?: string;
   onPlayRandom: () => void;
+  onPlayChart: (item: ModItem, fullList: ModItem[], chartId: ChartId) => void;
   libraryProps: LibraryProps;
   localProps: LocalProps;
   favoritesProps: FavoritesProps;
 };
 
-type TabDef = { id: DrawerTabId; label: string };
+type TabDef = { id: DrawerTabId; label: string; iconOnly?: boolean };
 
 function SourceDrawer({
   open,
@@ -65,6 +68,7 @@ function SourceDrawer({
   showLibrary,
   helpContent,
   onPlayRandom,
+  onPlayChart,
   libraryProps,
   localProps,
   favoritesProps,
@@ -83,11 +87,11 @@ function SourceDrawer({
 
   const tabs: TabDef[] = (
     [
-      { id: "random", label: "Random" },
+      { id: "modarchive", label: "Mod Archive" },
       showLibrary && { id: "library", label: "Library" },
       { id: "local", label: "Local" },
-      { id: "favorites", label: "♥" },
-      { id: "help", label: "?" },
+      { id: "favorites", label: "♥", iconOnly: true },
+      { id: "help", label: "?", iconOnly: true },
     ] as Array<TabDef | false>
   ).filter((t): t is TabDef => Boolean(t));
 
@@ -98,8 +102,8 @@ function SourceDrawer({
           <button
             key={t.id}
             className={`${drawer.tab} ${
-              activeTab === t.id ? drawer.tabActive : ""
-            }`}
+              t.iconOnly ? drawer.tabIcon : ""
+            } ${activeTab === t.id ? drawer.tabActive : ""}`}
             onClick={() => setActiveTab(t.id)}
             title={t.label}
           >
@@ -117,26 +121,11 @@ function SourceDrawer({
       </div>
       <hr className={player.fancyHr} />
       <div className={drawer.body}>
-        {activeTab === "random" && (
-          <div className={drawer.randomPane}>
-            <button
-              className={drawer.randomButton}
-              onClick={onPlayRandom}
-              type="button"
-            >
-              🎲 Play random
-            </button>
-            <div className={drawer.randomAttribution}>
-              from{" "}
-              <a
-                href="https://modarchive.org"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                modarchive.org
-              </a>
-            </div>
-          </div>
+        {activeTab === "modarchive" && (
+          <ModArchivePane
+            onPlayRandom={onPlayRandom}
+            onPlayChart={onPlayChart}
+          />
         )}
         {activeTab === "library" && showLibrary && (
           <LibraryCatalog {...libraryProps} />

@@ -35,6 +35,16 @@
   }
 }
 
+// Icon-only tabs (♥, ?) don't need full flex share — give them just
+// enough space for the glyph so the named tabs (Mod Archive, Library,
+// Local) can use the remaining width without truncating.
+.tabIcon {
+  flex: 0 0 auto;
+  width: 36px;
+  padding: 8px 4px;
+  font-size: 0.85rem;
+}
+
 .tabActive {
   opacity: 1;
   background: linear-gradient(to left, #c200ff, #00b8ff);
@@ -78,46 +88,6 @@
   &::-webkit-scrollbar-thumb {
     border-radius: 5px;
     background-color: #bd00ff;
-  }
-}
-
-.randomPane {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 24px;
-  padding: 16px;
-  text-align: center;
-}
-
-.randomButton {
-  padding: 18px 28px;
-  background: linear-gradient(to left, #c200ff, #00b8ff);
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-family: "Press Start 2P", cursive;
-  font-size: 0.85rem;
-  color: white;
-  user-select: none;
-  transition: transform 0.15s;
-
-  &:hover {
-    transform: scale(1.05);
-  }
-}
-
-.randomAttribution {
-  font-family: "Press Start 2P", cursive;
-  font-size: 0.55rem;
-  color: white;
-  opacity: 0.6;
-
-  a {
-    color: #00b8ff;
-    text-decoration: underline;
   }
 }
 

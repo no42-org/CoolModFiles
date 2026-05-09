@@ -1,0 +1,95 @@
+/*
+ * Copyright 2026 Ronny Trommer <ronny@no42.org>
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+// Shared styles for ChartList / PeopleList / PersonMods. Mirrors the
+// LibraryCatalog row aesthetic for consistency inside the drawer.
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  scrollbar-color: #bd00ff transparent;
+  scrollbar-width: thin;
+
+  &::-webkit-scrollbar {
+    width: 5px;
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 5px;
+    background: #bd00ff;
+  }
+}
+
+.row {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:hover {
+    background: rgba(194, 0, 255, 0.2);
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.rank {
+  display: inline-block;
+  min-width: 2.5em;
+  opacity: 0.6;
+}
+
+.title {
+  color: white;
+}
+
+.subtitle {
+  display: block;
+  font-size: 0.55rem;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+.empty,
+.error,
+.loading {
+  padding: 16px;
+  text-align: center;
+  font-size: 0.65rem;
+  opacity: 0.6;
+}
+
+.error {
+  color: #ff8888;
+  opacity: 0.9;
+}
+
+.retryButton {
+  display: block;
+  margin: 12px auto 0;
+  padding: 8px 16px;
+  background-color: black;
+  border: 2px solid #c200ff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: "Press Start 2P", cursive;
+  font-size: 0.6rem;
+  color: white;
+
+  &:hover {
+    background: linear-gradient(to left, #c200ff, #00b8ff);
+  }
+}
