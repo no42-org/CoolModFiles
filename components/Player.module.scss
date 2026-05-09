@@ -34,45 +34,43 @@
 }
 
 // The drawer ('.playerBack') has two layout modes driven by viewport
-// width. Below 1440px we use OVERLAY mode (drawer covers the player
-// when open) so the player+drawer combo never extends past the
-// viewport. At/above 1440px we use SIDE-BY-SIDE mode (drawer slides
-// out into the wrapper's expanded right half).
-// Width matches player; on mobile both shrink via max-width: 90%.
+// width. Below 1440px we use OVERLAY mode: the drawer fades in over
+// the player at the same position (left:0). At/above 1440px we use
+// SIDE-BY-SIDE mode: the drawer slides out to the right of the
+// player inside the expanded wrapper.
+//
+// "Closed" means the same thing in both modes — left:0, opacity:0,
+// pointer-events:none — so resizing the window doesn't accidentally
+// reveal the drawer. Width matches player.
 .playerBack {
   position: absolute;
   display: flex;
   flex-direction: column;
   top: 0;
+  left: 0;
   height: 100%;
   width: 470px;
   background-color: black;
   border-radius: 5px;
   padding: 10px;
-  visibility: visible;
-  transition: left 0.5s ease;
-
-  // Overlay mode (default). Closed = off-screen right of player,
-  // open = covers the player. Drawer must sit ABOVE the player.
-  left: 470px;
   z-index: 51;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    left 0.5s ease,
+    opacity 0.3s ease;
 }
 
 .playerBackOpen {
-  // Overlay open position
-  left: 0;
+  // Open: visible and clickable (in any mode)
+  opacity: 1;
+  pointer-events: auto;
 }
 
 @media screen and (min-width: 1440px) {
-  .playerBack {
-    // Side-by-side mode. Closed = behind the player (z-index 49),
-    // open = slides into the right half of the expanded wrapper.
-    left: 0;
-    z-index: 49;
-  }
   .playerBackOpen {
-    // Side-by-side open: drawer sits to the right of the player
-    // inside the now-940px wrapper.
+    // Side-by-side: drawer slides to right of player inside the
+    // expanded 940px wrapper.
     left: 470px;
   }
 }
@@ -114,9 +112,5 @@
   }
   .playerBack {
     width: 100%;
-    left: 100%;
-  }
-  .playerBackOpen {
-    left: 0;
   }
 }
