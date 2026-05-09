@@ -2,16 +2,9 @@ import React from "react";
 import Head from "next/head";
 import type { GetServerSideProps } from "next";
 
-import Player, { type PlayerHandle } from "../components/Player";
+import Player from "../components/Player";
 import Footer from "../components/Footer";
-import SourceTabs from "../components/SourceTabs";
-import LocalCatalog from "../components/local/LocalCatalog";
-import LibraryCatalog from "../components/library/LibraryCatalog";
-import {
-  modArchive,
-  library,
-  type Source,
-} from "../components/sources";
+import { modArchive, library, type Source } from "../components/sources";
 import {
   getRandomInt,
   getRandomFromArray,
@@ -24,8 +17,6 @@ import {
 } from "../utils";
 import { useKeyPress } from "../hooks";
 import { isMobile } from "react-device-detect";
-
-type TabId = "random" | "library" | "local";
 
 type IndexProps = {
   trackId: string | null;
@@ -41,46 +32,9 @@ function Index({
   latestId,
 }: IndexProps) {
   const [start, setStart] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<TabId>("random");
-  const [pickedFiles, setPickedFiles] = React.useState<File[]>([]);
-  const [libraryPath, setLibraryPath] = React.useState("");
-  const [libraryAvailable, setLibraryAvailable] = React.useState(false);
-  const playerRef = React.useRef<PlayerHandle | null>(null);
   const [randomMsg, setRandomMsg] = React.useState(
     getRandomFromArray(getRandomInt(0, 158) ? MESSAGES : EE_MESSAGES)
   );
-
-  // Probe whether the server has LIBRARY_ROOT configured. The Library tab
-  // is hidden when the API returns 404.
-  React.useEffect(() => {
-    fetch("/api/library?path=")
-      .then((r) => setLibraryAvailable(r.ok))
-      .catch(() => setLibraryAvailable(false));
-  }, []);
-
-  // When arriving via a library permalink, switch to the Library tab and
-  // open the catalog at the file's parent directory so the breadcrumb
-  // reflects context.
-  React.useEffect(() => {
-    if (initialSource?.type === "library" && libraryAvailable) {
-      setActiveTab("library");
-      const parts = initialSource.path.split("/");
-      parts.pop();
-      setLibraryPath(parts.join("/"));
-    }
-  }, [initialSource, libraryAvailable]);
-
-  // Tab change handler. Switching INTO Random is an action, not just a
-  // catalog mode change: it plays a new random ModArchive track and
-  // resets the prev/next history so back-button navigation stays within
-  // ModArchive (not the source the user just left).
-  const handleTabChange = (tab: TabId) => {
-    if (tab === "random" && activeTab !== "random") {
-      const next = modArchive(getRandomInt(0, latestId));
-      playerRef.current?.playSource(next, { resetHistory: true });
-    }
-    setActiveTab(tab);
-  };
 
   const getMessage = () => {
     if (isMobile) {
@@ -117,53 +71,10 @@ function Index({
           <title>CoolModFiles.com - Play some cool MOD files!</title>
         </Head>
         <div id="app">
-          <SourceTabs
-            activeTab={activeTab}
-            onChange={handleTabChange}
-            showLibrary={libraryAvailable}
-          />
-          {activeTab === "random" && (
-            <div
-              style={{
-                textAlign: "center",
-                fontSize: "0.55rem",
-                fontFamily: '"Press Start 2P", cursive',
-                color: "white",
-                opacity: 0.6,
-                marginBottom: 12,
-              }}
-            >
-              from{" "}
-              <a
-                href="https://modarchive.org"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "#00b8ff", textDecoration: "underline" }}
-              >
-                modarchive.org
-              </a>
-            </div>
-          )}
-          {activeTab === "library" && libraryAvailable && (
-            <LibraryCatalog
-              currentPath={libraryPath}
-              setCurrentPath={setLibraryPath}
-              onPlay={(source) => playerRef.current?.playSource(source)}
-            />
-          )}
-          {activeTab === "local" && (
-            <LocalCatalog
-              pickedFiles={pickedFiles}
-              setPickedFiles={setPickedFiles}
-              onPlay={(source) => playerRef.current?.playSource(source)}
-            />
-          )}
           <Player
-            ref={playerRef}
             initialSource={initialSource}
             backSideContent={backSideContent}
             latestId={latestId}
-            pickedFiles={pickedFiles}
           />
           <Footer />
         </div>

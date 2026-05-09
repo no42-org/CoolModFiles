@@ -1,12 +1,18 @@
 ## What is this?
 
-It's a web player for chiptune **MOD** files. Pick a source from the tab strip at the top — random tracks from [modarchive.org](https://modarchive.org), a server-curated **Library**, or your **Local** files dropped right into the browser.
+It's a web player for chiptune **MOD** files. Open the side drawer (the playlist icon in the player footer) to pick a source — random tracks from [modarchive.org](https://modarchive.org), a server-curated **Library**, your **Local** files, your **Favorites**, or this Help.
 
 ## Sources
 
-- **Random** — plays a random module from [modarchive.org](https://modarchive.org). The default.
+The drawer has five tabs: **Random**, **Library**, **Local**, **♥ Favorites**, **? Help**.
+
+- **Random** — click "🎲 Play random" to play a random module from [modarchive.org](https://modarchive.org). Each click resets the prev/next history.
 - **Library** — browses a server-curated collection (only visible when the operator has configured one).
 - **Local** — drop your own MOD files into the browser. Files stay on your device for the session — nothing is uploaded.
+- **♥ Favorites** — your saved tracks. Click any to play.
+- **? Help** — this document.
+
+The drawer stays open after you pick a track so you can keep browsing. Close it with the × button in the corner or the `Esc` key.
 
 `n` / random-next and auto-advance pick from whatever source is currently playing, so a Library track skips to another Library track and a Local track shuffles within your dropped files.
 

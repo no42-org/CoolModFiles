@@ -12,7 +12,6 @@ import {
   PlayButton,
   ShareIcon,
   CodeIcon,
-  QuestionIcon,
   RepeatIcon,
   LikeButton,
   PlayListButton,
@@ -52,8 +51,7 @@ type PlayerBigProps = {
   playPrevious: () => void;
   playNext: () => void | Promise<void>;
   currentId: number;
-  toggleHelpDrawer: () => void;
-  toggleLikedModsDrawer: () => void;
+  onToggleDrawer: () => void;
   downloadTrack: () => void | Promise<void>;
   repeat: boolean;
   setRepeat: (v: boolean) => void;
@@ -81,8 +79,7 @@ function PlayerBig({
   playPrevious,
   playNext,
   currentId,
-  toggleHelpDrawer,
-  toggleLikedModsDrawer,
+  onToggleDrawer,
   downloadTrack,
   repeat,
   setRepeat,
@@ -91,21 +88,6 @@ function PlayerBig({
   updateFavoriteModsRuntime,
 }: PlayerBigProps) {
   const [dropDownClass, setDropDownClass] = React.useState(dropDownClose);
-
-  React.useEffect(() => {
-    setTimeout(() => {
-      try {
-        const el = document.getElementById("backside");
-        if (el) el.style.visibility = "visible";
-      } catch (error) {}
-    }, 1000);
-    setTimeout(() => {
-      try {
-        const el = document.getElementById("liked-mods");
-        if (el) el.style.visibility = "visible";
-      } catch (error) {}
-    }, 1000);
-  }, []);
 
   React.useEffect(() => {
     document
@@ -282,14 +264,7 @@ function PlayerBig({
             />
           </div>
           <div className={styles.footer}>
-            <div className={styles.footerLeft}>
-              <QuestionIcon
-                className={styles.question}
-                height="30"
-                width="30"
-                onClick={() => toggleHelpDrawer()}
-              />
-            </div>
+            <div className={styles.footerLeft} />
             <div className={styles.footerCenter}>
               <ArrowIcon
                 className={styles.arrow}
@@ -305,7 +280,7 @@ function PlayerBig({
                 className={styles.playlistButton}
                 height="30"
                 width="30"
-                onClick={() => toggleLikedModsDrawer()}
+                onClick={() => onToggleDrawer()}
               />
               <RepeatIcon
                 id="repeat"

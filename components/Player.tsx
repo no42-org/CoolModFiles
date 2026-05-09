@@ -6,13 +6,11 @@ import copy from "copy-to-clipboard";
 import styles from "./Player.module.scss";
 import PlayerBig from "./PlayerBig";
 import PlayerMin from "./PlayerMin";
-import BackSide from "./BackSide";
-import LikedMods from "./LikedMods";
+import SourceDrawer, { type DrawerTabId } from "./SourceDrawer";
 
 import { ToastContainer } from "react-toastify";
 import { useInterval, useKeyPress } from "../hooks";
 import { getRandomInt, showToast } from "../utils";
-import { DownloadButton } from "../icons";
 import {
   modArchive,
   library,
@@ -65,23 +63,15 @@ type MetaData = {
   message?: string;
 };
 
-type PlaySourceOptions = { resetHistory?: boolean };
-
-export type PlayerHandle = {
-  playSource: (source: Source, options?: PlaySourceOptions) => void;
-};
+type PlaySourceOptions = { resetHistory?: boolean; confirmToast?: boolean };
 
 type PlayerProps = {
   initialSource: Source | null;
   backSideContent?: string;
   latestId: number;
-  pickedFiles?: File[];
 };
 
-const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
-  { initialSource, backSideContent, latestId, pickedFiles = [] },
-  ref
-) {
+function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const [isPlay, setIsPlay] = React.useState(false);
   const [player, setPlayer] = React.useState<ChiptuneJsPlayer | null>(null);
   const [volume, setVolume] = React.useState<number>(() => {
@@ -112,14 +102,17 @@ const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
   });
   const playGenerationRef = React.useRef(0);
   const [repeat, setRepeat] = React.useState(false);
-  const [helpDrawerOpen, setHelpDrawerOpen] = React.useState(false);
-  const [likedModsDrawerOpen, setLikedModsDrawerOpen] = React.useState(false);
-  const [backClass, setBackClass] = React.useState<string[]>([
-    styles.playerBack,
-  ]);
-  const [likedModsClass, setLikedModsClass] = React.useState<string[]>([
-    styles.playerBack,
-  ]);
+
+  // Source-drawer state — replaces the two mutually-exclusive
+  // helpDrawerOpen/likedModsDrawerOpen flags from the previous design.
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [drawerTab, setDrawerTab] = React.useState<DrawerTabId>("random");
+
+  // Catalog state lifted from pages/index.tsx so the drawer (which
+  // hosts the catalogs) can live inside this component's render tree.
+  const [pickedFiles, setPickedFiles] = React.useState<File[]>([]);
+  const [libraryPath, setLibraryPath] = React.useState("");
+  const [libraryAvailable, setLibraryAvailable] = React.useState(false);
 
   const [favoriteModsRuntime, setFavoriteModsRuntime] = React.useState<
     FavoriteTrack[]
@@ -164,7 +157,7 @@ const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
   React.useEffect(() => {
     if (spaceKey || enterKey) togglePlay();
     if (shiftKey) changeSize();
-    if (helpKey || quitKey) toggleHelpDrawer();
+    if (helpKey || quitKey) openDrawerToTab("help");
     if (repeatKey && player) {
       showToast(`repeat ${!repeat ? "on" : "off"}`);
       player.setRepeatCount(!repeat ? -1 : 0);
@@ -246,27 +239,26 @@ const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
     }
   }, [player]);
 
+  // Probe whether the server has LIBRARY_ROOT configured. The Library
+  // tab is hidden in the drawer when the API returns 404.
   React.useEffect(() => {
-    if (helpDrawerOpen) {
-      setBackClass([backClass[0], styles.slideRight]);
-      if (likedModsDrawerOpen) {
-        setLikedModsDrawerOpen(false);
-      }
-    } else {
-      setBackClass([backClass[0], styles.slideLeft]);
-    }
-  }, [helpDrawerOpen]);
+    fetch("/api/library?path=")
+      .then((r) => setLibraryAvailable(r.ok))
+      .catch(() => setLibraryAvailable(false));
+  }, []);
 
+  // Library deep-link: open the drawer to the Library tab and scroll
+  // the catalog to the file's parent directory so the breadcrumb
+  // reflects context.
   React.useEffect(() => {
-    if (likedModsDrawerOpen) {
-      setLikedModsClass([likedModsClass[0], styles.slideRight]);
-      if (helpDrawerOpen) {
-        setHelpDrawerOpen(false);
-      }
-    } else {
-      setLikedModsClass([likedModsClass[0], styles.slideLeft]);
+    if (initialSource?.type === "library" && libraryAvailable) {
+      const parts = initialSource.path.split("/");
+      parts.pop();
+      setLibraryPath(parts.join("/"));
+      setDrawerTab("library");
+      setDrawerOpen(true);
     }
-  }, [likedModsDrawerOpen]);
+  }, [initialSource, libraryAvailable]);
 
   const togglePlay = () => {
     if (!player) return;
@@ -316,7 +308,7 @@ const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
 
   const playFromSource = (source: Source, options: PlaySourceOptions = {}) => {
     if (!player) return;
-    const { resetHistory = false } = options;
+    const { resetHistory = false, confirmToast = false } = options;
     // Generation counter — protects against stale .then handlers from
     // earlier playFromSource calls overwriting fresh state when the
     // user switches tracks/sources before the previous fetch resolves.
@@ -366,16 +358,15 @@ const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
           });
         }
         document.title = `🎶 ${player.metadata().title} - CoolModFiles.com 🎶`;
+        if (confirmToast) {
+          showToast(`▶ Playing ${player.metadata().title || "track"}`);
+        }
       })
       .catch(() => {
         if (myGeneration !== playGenerationRef.current) return;
         playFromSource(modArchive(getRandomInt(0, maxId)));
       });
   };
-
-  React.useImperativeHandle(ref, () => ({
-    playSource: (source, options) => playFromSource(source, options),
-  }));
 
   const toggleMute = () => {
     if (!player) return;
@@ -389,11 +380,20 @@ const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
     }
   };
 
-  const toggleHelpDrawer = () => {
-    setHelpDrawerOpen(!helpDrawerOpen);
+  const toggleDrawer = () => setDrawerOpen((v) => !v);
+  const closeDrawer = () => setDrawerOpen(false);
+  const openDrawerToTab = (tab: DrawerTabId) => {
+    setDrawerTab(tab);
+    setDrawerOpen(true);
   };
-  const toggleLikedModsDrawer = () => {
-    setLikedModsDrawerOpen(!likedModsDrawerOpen);
+
+  const playFromDrawer = (source: Source) => {
+    playFromSource(source, { confirmToast: true });
+  };
+
+  const handlePlayRandom = () => {
+    const next = modArchive(getRandomInt(0, maxId));
+    playFromSource(next, { resetHistory: true, confirmToast: true });
   };
 
   const downloadTrack = async () => {
@@ -514,8 +514,7 @@ const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
               currentId={
                 (history[playingSource.type] || { current: -1 }).current
               }
-              toggleLikedModsDrawer={toggleLikedModsDrawer}
-              toggleHelpDrawer={toggleHelpDrawer}
+              onToggleDrawer={toggleDrawer}
               downloadTrack={downloadTrack}
               repeat={repeat}
               setRepeat={setRepeat}
@@ -524,35 +523,33 @@ const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
               favoriteModsRuntime={favoriteModsRuntime}
             />
           </div>
-          <div id="backside" className={backClass.join(" ")}>
-            <h2>Help</h2>
-            <hr className={styles.fancyHr} />
-            <div className={styles.backSideContent}>
-              <BackSide content={backSideContent} />
-            </div>
-          </div>
-          <div id="liked-mods" className={likedModsClass.join(" ")}>
-            <header className={styles.favoriteHeader}>
-              <h2 onClick={downloadFavoriteModsJson}>
-                <a href="#">Favorite Mods</a>
-              </h2>
-              <div className={styles.downloadAll}>
-                <DownloadButton
-                  onClick={downloadFavoriteMods}
-                  height="25"
-                  width="25"
-                />
-              </div>
-            </header>
-            <hr className={styles.fancyHr} />
-            <div className={styles.likedModsContent}>
-              <LikedMods
-                content={favoriteModsRuntime}
-                onPlay={(track) => playFromSource(modArchive(track.id))}
-                removeFavoriteModRuntime={removeFavoriteModRuntime}
-              />
-            </div>
-          </div>
+          <SourceDrawer
+            open={drawerOpen}
+            activeTab={drawerTab}
+            setActiveTab={setDrawerTab}
+            onClose={closeDrawer}
+            showLibrary={libraryAvailable}
+            helpContent={backSideContent}
+            onPlayRandom={handlePlayRandom}
+            libraryProps={{
+              currentPath: libraryPath,
+              setCurrentPath: setLibraryPath,
+              onPlay: playFromDrawer,
+            }}
+            localProps={{
+              pickedFiles,
+              setPickedFiles,
+              onPlay: playFromDrawer,
+            }}
+            favoritesProps={{
+              content: favoriteModsRuntime,
+              onPlay: (track) =>
+                playFromSource(modArchive(track.id), { confirmToast: true }),
+              removeFavoriteModRuntime,
+              downloadFavoriteMods,
+              downloadFavoriteModsJson,
+            }}
+          />
         </div>
       ) : (
         <div className={styles.player}>
@@ -573,6 +570,6 @@ const Player = React.forwardRef<PlayerHandle, PlayerProps>(function Player(
       )}
     </div>
   );
-});
+}
 
 export default Player;

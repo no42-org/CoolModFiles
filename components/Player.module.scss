@@ -32,64 +32,8 @@
   width: 100%;
   background-color: black;
   border-radius: 5px;
-  visibility: hidden;
+  visibility: visible;
   padding: 10px 10px 10px 10px;
-
-  h2 {
-    background: linear-gradient(to left, #c200ff, #00b8ff);
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-}
-
-.favoriteHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.backSideContent {
-  overflow-y: auto;
-  margin: 10px 5px 10px 5px;
-  scrollbar-color: #bd00ff transparent;
-  scrollbar-width: thin;
-  overflow-x: hidden;
-
-  &::-webkit-scrollbar-track {
-    border-radius: 10px;
-    background-color: transparent;
-  }
-  &::-webkit-scrollbar {
-    width: 5px;
-    margin-right: 10px;
-    background-color: transparent;
-  }
-  &::-webkit-scrollbar-thumb {
-    border-radius: 5px;
-    background-color: #bd00ff;
-  }
-}
-
-.likedModsContent {
-  overflow-y: auto;
-  margin: 10px 5px 10px 5px;
-  scrollbar-color: #bd00ff transparent;
-  scrollbar-width: thin;
-  overflow-x: hidden;
-
-  &::-webkit-scrollbar-track {
-    border-radius: 10px;
-    background-color: transparent;
-  }
-  &::-webkit-scrollbar {
-    width: 5px;
-    margin-right: 10px;
-    background-color: transparent;
-  }
-  &::-webkit-scrollbar-thumb {
-    border-radius: 5px;
-    background-color: #bd00ff;
-  }
 }
 
 .slideRight {

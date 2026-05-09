@@ -33,7 +33,8 @@ See [`.env.example`](.env.example) for the runtime environment variables.
 
 The player can browse and play MOD files from a directory on the host machine
 in addition to ModArchive's random feed. Set `LIBRARY_ROOT` to an absolute path
-inside the container; the Library tab appears when this is configured.
+inside the container; the Library tab appears in the source drawer when this
+is configured.
 
 For local dev, drop a `mods/` folder in the repo root — `make run` will mount
 it read-only into the container at `/library` and set `LIBRARY_ROOT=/library`
