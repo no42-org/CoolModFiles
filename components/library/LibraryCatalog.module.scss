@@ -1,7 +1,8 @@
 .wrapper {
-  width: 90%;
-  max-width: 720px;
-  margin: 0 auto 16px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
   font-family: "Press Start 2P", cursive;
   color: white;
 }
@@ -50,7 +51,8 @@
   list-style: none;
   padding: 0;
   margin: 0;
-  max-height: 240px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.4);
   border-radius: 8px;
