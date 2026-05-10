@@ -1,0 +1,12 @@
+services:
+  coolmodfiles:
+    image: ghcr.io/no42-org/coolmodfiles:latest
+    container_name: coolmodfiles
+    ports:
+      - "3000:3000"
+    environment:
+      LIBRARY_ROOT: /library
+      # DOMAIN: https://your.domain
+    volumes:
+      - ./mods:/library:ro
+    restart: unless-stopped
