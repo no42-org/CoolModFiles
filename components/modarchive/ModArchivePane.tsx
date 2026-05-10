@@ -12,15 +12,18 @@ import type { ModItem, PersonItem } from "../../lib/modarchive/types";
 
 export type ChartId =
   | "random"
+  | "featured"
   | "tophits"
   | "topfavourites"
   | "topscore"
   | `artist:${number}`;
 
+type ModChartKind = "featured" | "tophits" | "topfavourites" | "topscore";
+
 type View =
   | { kind: "menu" }
   | { kind: "random" }
-  | { kind: "chart"; chart: "tophits" | "topfavourites" | "topscore" }
+  | { kind: "chart"; chart: ModChartKind }
   | { kind: "topartists" }
   | { kind: "artist"; id: number; name: string };
 
@@ -30,6 +33,11 @@ type ModArchivePaneProps = {
 };
 
 const MENU_ITEMS: Array<{ icon: string; label: string; view: View }> = [
+  {
+    icon: "🌟",
+    label: "All Featured Modules",
+    view: { kind: "chart", chart: "featured" },
+  },
   { icon: "🎲", label: "Random", view: { kind: "random" } },
   {
     icon: "⭐",
@@ -108,11 +116,13 @@ function ModArchivePane({ onPlayRandom, onPlayChart }: ModArchivePaneProps) {
     );
   } else if (view.kind === "chart") {
     title =
-      view.chart === "tophits"
-        ? "Most Downloads"
-        : view.chart === "topfavourites"
-          ? "Top Favorites"
-          : "Most Revered";
+      view.chart === "featured"
+        ? "All Featured Modules"
+        : view.chart === "tophits"
+          ? "Most Downloads"
+          : view.chart === "topfavourites"
+            ? "Top Favorites"
+            : "Most Revered";
     body = (
       <ChartList
         kind={view.chart}

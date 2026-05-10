@@ -6,7 +6,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { fetchHtml } from "../../../../lib/modarchive/fetch";
 import * as cache from "../../../../lib/modarchive/cache";
-import { parsePersonMods } from "../../../../lib/modarchive/parse";
+import {
+  parsePagination,
+  parsePersonMods,
+} from "../../../../lib/modarchive/parse";
 import type { PersonModsResponse } from "../../../../lib/modarchive/types";
 
 export default async function handler(
@@ -23,8 +26,17 @@ export default async function handler(
     return res.status(400).json({ error: "id must be a positive integer" });
   }
 
+  const pageRaw = Array.isArray(req.query.page)
+    ? req.query.page[0]
+    : req.query.page;
+  const page = pageRaw ? Number(pageRaw) : 1;
+  if (!Number.isInteger(page) || page <= 0) {
+    return res.status(400).json({ error: "page must be a positive integer" });
+  }
+
   // modarchive.org redirects modules.php?<id> → index.php?request=view_artist_modules&query=<id>
-  const url = `https://modarchive.org/modules.php?${id}`;
+  const baseUrl = `https://modarchive.org/modules.php?${id}`;
+  const url = page === 1 ? baseUrl : `${baseUrl}&page=${page}`;
   const cached = cache.get<PersonModsResponse>(url);
   if (cached) return res.status(200).json(cached);
 
@@ -37,8 +49,10 @@ export default async function handler(
   }
 
   let items;
+  let pagination;
   try {
     items = parsePersonMods(html);
+    pagination = parsePagination(html);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "parse failed";
     return res.status(502).json({ error: msg });
@@ -48,7 +62,7 @@ export default async function handler(
     return res.status(404).json({ error: "no mods found for this artist" });
   }
 
-  const payload: PersonModsResponse = { items };
+  const payload: PersonModsResponse = { items, pagination };
   cache.set(url, payload, cache.DEFAULT_TTL_SEC);
   return res.status(200).json(payload);
 }

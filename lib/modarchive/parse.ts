@@ -23,7 +23,32 @@
 // We fetch page 1 only — explicit v1 scope.
 
 import * as cheerio from "cheerio";
-import type { ModItem, PersonItem } from "./types";
+import type { ModItem, Pagination, PersonItem } from "./types";
+
+// Pagination on chart pages is rendered as a strip of `<a>` tags whose
+// hrefs include `&page=N#mods` (or `?page=N` etc). The currently active
+// page uses class `pagination-selected`. Total pages = max page number
+// referenced anywhere in the strip. If no pagination markup is found,
+// assume single-page result.
+export function parsePagination(html: string): Pagination {
+  const $ = cheerio.load(html);
+  const seen = new Set<number>();
+  let active = 1;
+  $("a").each((_, el) => {
+    const href = $(el).attr("href") ?? "";
+    const m = href.match(/[?&]page=(\d+)/);
+    if (!m) return;
+    const n = Number(m[1]);
+    if (!Number.isFinite(n) || n <= 0) return;
+    seen.add(n);
+    if ($(el).attr("class")?.includes("pagination-selected")) {
+      active = n;
+    }
+  });
+  if (seen.size === 0) return { page: 1, totalPages: 1 };
+  const totalPages = Math.max(...seen);
+  return { page: active, totalPages };
+}
 
 function extractIdFromHref(href: string): number | null {
   // Matches `module.php?12345` / `modules.php?67890` / `member.php?13579`.

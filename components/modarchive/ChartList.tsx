@@ -9,30 +9,40 @@ import type {
   ChartKind,
   ModItem,
   ModChartResponse,
+  Pagination,
 } from "../../lib/modarchive/types";
 
 type ChartListProps = {
-  kind: Extract<ChartKind, "tophits" | "topfavourites" | "topscore">;
+  kind: Extract<ChartKind, "featured" | "tophits" | "topfavourites" | "topscore">;
   onPick: (item: ModItem, fullList: ModItem[]) => void;
 };
 
 type State =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ok"; items: ModItem[] };
+  | { status: "ok"; items: ModItem[]; pagination: Pagination };
 
 function ChartList({ kind, onPick }: ChartListProps) {
   const [state, setState] = React.useState<State>({ status: "loading" });
   const [reloadCounter, setReloadCounter] = React.useState(0);
+  const [page, setPage] = React.useState(1);
 
   React.useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
-    fetch(`/api/modarchive/charts/${kind}`)
+    const url =
+      page === 1
+        ? `/api/modarchive/charts/${kind}`
+        : `/api/modarchive/charts/${kind}?page=${page}`;
+    fetch(url)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data: ModChartResponse) => {
         if (cancelled) return;
-        setState({ status: "ok", items: data.items });
+        setState({
+          status: "ok",
+          items: data.items,
+          pagination: data.pagination,
+        });
       })
       .catch((err) => {
         if (cancelled) return;
@@ -42,7 +52,12 @@ function ChartList({ kind, onPick }: ChartListProps) {
     return () => {
       cancelled = true;
     };
-  }, [kind, reloadCounter]);
+  }, [kind, page, reloadCounter]);
+
+  // Reset to page 1 whenever the user opens a different chart kind.
+  React.useEffect(() => {
+    setPage(1);
+  }, [kind]);
 
   if (state.status === "loading") {
     return <div className={styles.loading}>Loading…</div>;
@@ -64,25 +79,55 @@ function ChartList({ kind, onPick }: ChartListProps) {
   if (state.items.length === 0) {
     return <div className={styles.empty}>No tracks in this chart.</div>;
   }
+  const { pagination } = state;
+  const hasPrev = pagination.page > 1;
+  const hasNext = pagination.page < pagination.totalPages;
   return (
-    <ul className={styles.list}>
-      {state.items.map((item) => (
-        <li
-          key={item.id}
-          className={styles.row}
-          onClick={() => onPick(item, state.items)}
-          title={item.title}
-        >
-          {item.rank !== undefined && (
-            <span className={styles.rank}>#{item.rank}</span>
-          )}
-          <span className={styles.title}>{item.title}</span>
-          {item.filename && (
-            <span className={styles.subtitle}>{item.filename}</span>
-          )}
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className={styles.list}>
+        {state.items.map((item) => (
+          <li
+            key={item.id}
+            className={styles.row}
+            onClick={() => onPick(item, state.items)}
+            title={item.title}
+          >
+            {item.rank !== undefined && (
+              <span className={styles.rank}>#{item.rank}</span>
+            )}
+            <span className={styles.title}>{item.title}</span>
+            {item.filename && (
+              <span className={styles.subtitle}>{item.filename}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {pagination.totalPages > 1 && (
+        <div className={styles.pagination}>
+          <button
+            className={styles.pageButton}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={!hasPrev}
+            type="button"
+          >
+            ‹ Prev
+          </button>
+          <span className={styles.pageStatus}>
+            {pagination.page} / {pagination.totalPages}
+          </span>
+          <button
+            className={styles.pageButton}
+            onClick={() =>
+              setPage((p) => Math.min(pagination.totalPages, p + 1))
+            }
+            disabled={!hasNext}
+            type="button"
+          >
+            Next ›
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

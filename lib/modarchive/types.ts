@@ -4,6 +4,7 @@
  */
 
 export type ChartKind =
+  | "featured"
   | "tophits"
   | "topfavourites"
   | "topscore"
@@ -26,7 +27,20 @@ export type PersonItem = {
   rank?: number;
 };
 
-export type ModChartResponse = { kind: "mods"; items: ModItem[] };
-export type PeopleChartResponse = { kind: "people"; items: PersonItem[] };
+export type Pagination = { page: number; totalPages: number };
+
+export type ModChartResponse = {
+  kind: "mods";
+  items: ModItem[];
+  pagination: Pagination;
+};
+export type PeopleChartResponse = {
+  kind: "people";
+  items: PersonItem[];
+  pagination: Pagination;
+};
 export type ChartResponse = ModChartResponse | PeopleChartResponse;
-export type PersonModsResponse = { items: ModItem[] };
+export type PersonModsResponse = {
+  items: ModItem[];
+  pagination: Pagination;
+};

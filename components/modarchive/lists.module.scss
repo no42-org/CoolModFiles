@@ -93,3 +93,46 @@
     background: linear-gradient(to left, #c200ff, #00b8ff);
   }
 }
+
+.pagination {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 0 4px;
+  font-family: "Press Start 2P", cursive;
+  font-size: 0.55rem;
+  color: white;
+}
+
+.pageButton {
+  padding: 6px 12px;
+  background-color: black;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: "Press Start 2P", cursive;
+  font-size: 0.55rem;
+  color: white;
+  opacity: 0.8;
+  transition:
+    opacity 0.15s,
+    border-color 0.15s;
+
+  &:hover:not(:disabled) {
+    opacity: 1;
+    border-color: #c200ff;
+  }
+
+  &:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+  }
+}
+
+.pageStatus {
+  flex: 0 0 auto;
+  opacity: 0.6;
+}

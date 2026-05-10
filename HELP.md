@@ -7,6 +7,7 @@ It's a web player for chiptune **MOD** files. Open the side drawer (the playlist
 The drawer has five tabs: **Mod Archive**, **Library**, **Local**, **♥ Favorites**, **? Help**.
 
 - **Mod Archive** — drill-in menu for ways to find tracks on [modarchive.org](https://modarchive.org):
+  - **🌟 All Featured Modules** — the editor-featured modules chart.
   - **🎲 Random** — click "Play random" to play a random module. Each click resets prev/next history.
   - **⭐ Top Favorites** — most-favorited mods on the site.
   - **⬇ Most Downloads** — most-downloaded mods.
