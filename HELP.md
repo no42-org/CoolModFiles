@@ -13,6 +13,7 @@ The drawer has five tabs: **Mod Archive**, **Library**, **Local**, **♥ Favorit
   - **⬇ Most Downloads** — most-downloaded mods.
   - **🏆 Most Revered** — highest-rated mods.
   - **🎤 Artist Charts** — top artists; tap to see and play their mods.
+  - **🎼 By Genre** — browse modarchive's genre index, tap a genre to see and play its mods.
 - **Library** — browses a server-curated collection (only visible when the operator has configured one).
 - **Local** — drop your own MOD files into the browser. Files stay on your device for the session — nothing is uploaded.
 - **♥ Favorites** — your saved tracks. Click any to play.

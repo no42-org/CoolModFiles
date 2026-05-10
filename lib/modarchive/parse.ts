@@ -23,7 +23,13 @@
 // We fetch page 1 only — explicit v1 scope.
 
 import * as cheerio from "cheerio";
-import type { ModItem, Pagination, PersonItem } from "./types";
+import type {
+  Genre,
+  GenreCategory,
+  ModItem,
+  Pagination,
+  PersonItem,
+} from "./types";
 
 // Pagination on chart pages is rendered as a strip of `<a>` tags whose
 // hrefs include `&page=N#mods` (or `?page=N` etc). The currently active
@@ -111,6 +117,71 @@ export function parsePeopleChart(
     const rankMatch = rankText.match(/(\d+)/);
     const rank = rankMatch ? Number(rankMatch[1]) : undefined;
     items.push({ id, name, rank });
+  });
+  return items;
+}
+
+// Genres index page (`index.php?request=view_genres`). The page
+// arranges genres under category headings:
+//   <h1>Alternative</h1>
+//   <ul class="genres">
+//     <li class="genres">
+//       <a class="genres" href="index.php?query=48&request=search&search_type=genre">
+//         Alternative</a> (649)
+//     </li>
+//     ...
+//   </ul>
+export function parseGenres(html: string): GenreCategory[] {
+  const $ = cheerio.load(html);
+  const categories: GenreCategory[] = [];
+  $("ul.genres").each((_, ul) => {
+    // Walk backwards from the <ul> to the nearest preceding <h1>
+    // sibling for the category name. cheerio doesn't have a clean
+    // `prevUntil` for headings of any name, so use prevAll.
+    const headerText = $(ul).prevAll("h1").first().text().trim();
+    if (!headerText) return;
+    const genres: Genre[] = [];
+    $(ul)
+      .find("li.genres")
+      .each((_, li) => {
+        const a = $(li).find("a.genres").first();
+        const href = a.attr("href") ?? "";
+        const m = href.match(/query=(\d+)/);
+        if (!m) return;
+        const id = Number(m[1]);
+        const name = a.text().trim();
+        // Count is in the trailing " (NNN)" text node after the </a>.
+        const liText = $(li).text().trim();
+        const countMatch = liText.match(/\((\d+)\)\s*$/);
+        const count = countMatch ? Number(countMatch[1]) : undefined;
+        genres.push({ id, name, count });
+      });
+    if (genres.length > 0) {
+      categories.push({ name: headerText, genres });
+    }
+  });
+  return categories;
+}
+
+// Genre search results (`index.php?query=<id>&request=search&search_type=genre`).
+// Each mod row uses the search-results layout:
+//   <a class="standard-link" href="index.php?request=view_by_moduleid&query=<id>"
+//      title="Track Title">filename.ext</a>
+//   <span class="module-listing">Track Title</span>
+export function parseGenreMods(html: string): ModItem[] {
+  const $ = cheerio.load(html);
+  const items: ModItem[] = [];
+  $('a.standard-link[href*="view_by_moduleid"]').each((_, el) => {
+    const href = $(el).attr("href") ?? "";
+    const m = href.match(/query=(\d+)/);
+    if (!m) return;
+    const id = Number(m[1]);
+    const filename = $(el).text().trim();
+    const titleAttr = $(el).attr("title")?.trim();
+    const titleSibling =
+      $(el).closest("td").next("td").find("span.module-listing").first().text().trim();
+    const title = titleAttr || titleSibling || filename;
+    items.push({ id, title, filename });
   });
   return items;
 }

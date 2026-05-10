@@ -44,3 +44,27 @@ export type PersonModsResponse = {
   items: ModItem[];
   pagination: Pagination;
 };
+
+// One genre row inside a category section on /index.php?request=view_genres.
+export type Genre = {
+  id: number;
+  name: string;
+  count?: number;
+};
+
+// One category section ("Alternative", "Pop", "Electronic", …) holding
+// the genres that belong to it.
+export type GenreCategory = {
+  name: string;
+  genres: Genre[];
+};
+
+export type GenresResponse = { categories: GenreCategory[] };
+
+// Genre search results — same shape as PersonModsResponse, but the
+// upstream HTML uses different selectors so we keep a distinct type
+// to make the call sites explicit.
+export type GenreModsResponse = {
+  items: ModItem[];
+  pagination: Pagination;
+};

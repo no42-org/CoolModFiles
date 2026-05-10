@@ -8,7 +8,9 @@ import styles from "./ModArchivePane.module.scss";
 import ChartList from "./ChartList";
 import PeopleList from "./PeopleList";
 import PersonMods from "./PersonMods";
-import type { ModItem, PersonItem } from "../../lib/modarchive/types";
+import GenreList from "./GenreList";
+import GenreMods from "./GenreMods";
+import type { Genre, ModItem, PersonItem } from "../../lib/modarchive/types";
 
 export type ChartId =
   | "random"
@@ -16,7 +18,8 @@ export type ChartId =
   | "tophits"
   | "topfavourites"
   | "topscore"
-  | `artist:${number}`;
+  | `artist:${number}`
+  | `genre:${number}`;
 
 type ModChartKind = "featured" | "tophits" | "topfavourites" | "topscore";
 
@@ -25,7 +28,9 @@ type View =
   | { kind: "random" }
   | { kind: "chart"; chart: ModChartKind }
   | { kind: "topartists" }
-  | { kind: "artist"; id: number; name: string };
+  | { kind: "artist"; id: number; name: string }
+  | { kind: "genres" }
+  | { kind: "genre"; id: number; name: string };
 
 type ModArchivePaneProps = {
   onPlayRandom: () => void;
@@ -55,6 +60,7 @@ const MENU_ITEMS: Array<{ icon: string; label: string; view: View }> = [
     view: { kind: "chart", chart: "topscore" },
   },
   { icon: "🎤", label: "Artist Charts", view: { kind: "topartists" } },
+  { icon: "🎼", label: "By Genre", view: { kind: "genres" } },
 ];
 
 function ModArchivePane({ onPlayRandom, onPlayChart }: ModArchivePaneProps) {
@@ -63,6 +69,8 @@ function ModArchivePane({ onPlayRandom, onPlayChart }: ModArchivePaneProps) {
   const goBack = () => {
     if (view.kind === "artist") {
       setView({ kind: "topartists" });
+    } else if (view.kind === "genre") {
+      setView({ kind: "genres" });
     } else {
       setView({ kind: "menu" });
     }
@@ -147,6 +155,25 @@ function ModArchivePane({ onPlayRandom, onPlayChart }: ModArchivePaneProps) {
         id={view.id}
         onPick={(item, fullList) =>
           onPlayChart(item, fullList, `artist:${view.id}`)
+        }
+      />
+    );
+  } else if (view.kind === "genres") {
+    title = "By Genre";
+    body = (
+      <GenreList
+        onPick={(genre: Genre) =>
+          setView({ kind: "genre", id: genre.id, name: genre.name })
+        }
+      />
+    );
+  } else if (view.kind === "genre") {
+    title = `Genre: ${view.name}`;
+    body = (
+      <GenreMods
+        id={view.id}
+        onPick={(item, fullList) =>
+          onPlayChart(item, fullList, `genre:${view.id}`)
         }
       />
     );

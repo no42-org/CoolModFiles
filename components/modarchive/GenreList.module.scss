@@ -1,0 +1,56 @@
+/*
+ * Copyright 2026 Ronny Trommer <ronny@no42.org>
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  padding: 4px 0;
+  scrollbar-color: #bd00ff transparent;
+  scrollbar-width: thin;
+
+  &::-webkit-scrollbar {
+    width: 5px;
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 5px;
+    background: #bd00ff;
+  }
+}
+
+.category {
+  margin: 4px 0;
+}
+
+.categoryHeader {
+  margin: 8px 12px 4px;
+  font-family: "Press Start 2P", cursive;
+  font-size: 0.6rem;
+  background: linear-gradient(to left, #c200ff, #00b8ff);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.genreList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.genreRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.count {
+  flex: 0 0 auto;
+  font-size: 0.55rem;
+  opacity: 0.5;
+}
