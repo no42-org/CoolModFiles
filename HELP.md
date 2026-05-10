@@ -64,4 +64,4 @@ The programmer friends' idea, unfortunately, was beaten by [modarchive.org](http
 With it's modern look, it continues to surface thousands of long-forgotten mod files to introduce newer generations to the world of old-school digital music.
 
 **With ❤️**,  
-\- [@orhun](https://github.com/orhun), [@wkfo](https://github.com/wkfo), [@bufgix](https://github.com/bufgix)
+\- [@orhun](https://github.com/orhun), [@wkfo](https://github.com/wkfo), [@bufgix](https://github.com/bufgix), [@indigo423](https://github.com/indigo423).
