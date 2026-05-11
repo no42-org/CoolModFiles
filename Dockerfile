@@ -11,6 +11,12 @@ FROM node:${NODE_VERSION} AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# .git is excluded from the build context (.dockerignore), so the
+# git describe fallback in next.config.ts:resolveVersion cannot find a
+# tag and bakes APP_VERSION="dev" into the bundle. Callers (release
+# workflow, make image) pass the desired tag via --build-arg.
+ARG APP_VERSION=dev
+ENV APP_VERSION=${APP_VERSION}
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
