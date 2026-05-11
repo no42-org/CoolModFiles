@@ -115,6 +115,15 @@ ChiptuneJsPlayer.prototype.unlock = function() {
   unlockSource.buffer = buffer;
   unlockSource.connect(context.destination);
   unlockSource.start(0);
+  // Firefox starts AudioContexts in 'suspended' state per autoplay
+  // policy and only resumes on explicit resume() from a gesture
+  // context. unlock() is called synchronously from getBuffer inside
+  // the splash-click commit, so the gesture activation is still valid
+  // here. Without this, libopenmpt's cursor never advances and
+  // getPosition() returns 0 forever. See issue #11.
+  if (context.state === 'suspended') {
+    context.resume();
+  }
   this.touchLocked = false;
 };
 
