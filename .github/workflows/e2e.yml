@@ -28,9 +28,12 @@ jobs:
       # Firefox uses cubeb for audio and needs a real backend — without
       # one, AudioContext can't transition to 'running' regardless of any
       # JS fix. Chromium and WebKit have built-in null sinks; Firefox
-      # doesn't. Starting pulseaudio gives cubeb something to connect to.
-      - name: Start PulseAudio (Firefox audio backend)
-        run: pulseaudio --start --exit-idle-time=-1
+      # doesn't. Install and start pulseaudio so cubeb has a socket.
+      - name: Install and start PulseAudio (Firefox audio backend)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends pulseaudio
+          pulseaudio --start --exit-idle-time=-1
       - run: make e2e
       - if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
