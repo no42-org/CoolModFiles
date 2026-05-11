@@ -10,13 +10,38 @@ let ChiptuneAudioContext = {};
 
 ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
 
+// Pre-warm an AudioContext on the first user gesture anywhere on the
+// document. Firefox (esp. Linux) only honours resume() inside an active
+// gesture, and that activation is lost across React's effect-scheduling
+// boundary by the time the Player's useEffect constructs ChiptuneJsPlayer.
+// Using a capture-phase listener guarantees this runs before any React
+// onClick on the same event. See issue #11.
+(function() {
+  if (typeof document === 'undefined') return;
+  var prewarm = function() {
+    if (window.__chiptunePrewarmedAudioContext) return;
+    var Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) return;
+    var ctx = new Ctor();
+    ctx.resume();
+    window.__chiptunePrewarmedAudioContext = ctx;
+    document.removeEventListener('click', prewarm, true);
+    document.removeEventListener('keydown', prewarm, true);
+    document.removeEventListener('touchstart', prewarm, true);
+  };
+  document.addEventListener('click', prewarm, true);
+  document.addEventListener('keydown', prewarm, true);
+  document.addEventListener('touchstart', prewarm, true);
+})();
+
 function ChiptuneJsConfig(repeatCount, volume) {
   this.repeatCount = repeatCount;
   this.volume = volume;
 }
 
 function ChiptuneJsPlayer(config) {
-  this.context = new ChiptuneAudioContext();
+  this.context = window.__chiptunePrewarmedAudioContext
+    || new ChiptuneAudioContext();
   this.config = config;
   this.currentPlayingNode = null;
   this.handlers = [];
@@ -115,15 +140,6 @@ ChiptuneJsPlayer.prototype.unlock = function() {
   unlockSource.buffer = buffer;
   unlockSource.connect(context.destination);
   unlockSource.start(0);
-  // Firefox starts AudioContexts in 'suspended' state per autoplay
-  // policy and only resumes on explicit resume() from a gesture
-  // context. unlock() is called synchronously from getBuffer inside
-  // the splash-click commit, so the gesture activation is still valid
-  // here. Without this, libopenmpt's cursor never advances and
-  // getPosition() returns 0 forever. See issue #11.
-  if (context.state === 'suspended') {
-    context.resume();
-  }
   this.touchLocked = false;
 };
 
