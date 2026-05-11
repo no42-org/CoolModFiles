@@ -13,6 +13,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
@@ -44,6 +45,7 @@
     "sass": "^1.99.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",

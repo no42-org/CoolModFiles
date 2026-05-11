@@ -8,7 +8,7 @@ IMAGE_TAG  ?= rc
 ENV_FILE_ARG := $(if $(wildcard .env),--env-file .env,)
 LIBRARY_MOUNT_ARG := $(if $(wildcard ./mods),-v $(CURDIR)/mods:/library:ro -e LIBRARY_ROOT=/library,)
 
-.PHONY: help install lint typecheck audit build test verify format format-check image run clean
+.PHONY: help install lint typecheck audit build test e2e verify format format-check image run clean
 
 help: ## Show this help
 	@awk 'BEGIN {FS=":.*?## "} /^[a-zA-Z_-]+:.*?## /{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -30,6 +30,10 @@ build: install ## Build the Next.js app
 
 test: install ## Run Vitest test suite
 	npm test
+
+e2e: install ## Run Playwright end-to-end tests (installs browsers if missing)
+	npx playwright install --with-deps
+	npm run test:e2e
 
 verify: install ## Run lint + typecheck + audit + build (fail-fast)
 	npm run lint

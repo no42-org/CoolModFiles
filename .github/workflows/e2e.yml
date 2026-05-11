@@ -1,0 +1,43 @@
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: GPL-3.0-only
+name: E2E
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: 20
+          cache: npm
+      # Firefox uses cubeb for audio and needs a real backend — without
+      # one, AudioContext can't transition to 'running' regardless of any
+      # JS fix. Chromium and WebKit have built-in null sinks; Firefox
+      # doesn't. Install and start pulseaudio so cubeb has a socket.
+      - name: Install and start PulseAudio (Firefox audio backend)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends pulseaudio
+          pulseaudio --start --exit-idle-time=-1
+      - run: make e2e
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
