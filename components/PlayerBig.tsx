@@ -135,7 +135,7 @@ function PlayerBig({
             onChange={(val) => {
               if (typeof val !== "number" || !player) return;
               setVolume(val);
-              player.setVolume(val);
+              player.setVol(val / 100);
             }}
           />
           <VolumeIcon

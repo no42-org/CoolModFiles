@@ -22,6 +22,7 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
   const [isPlay, setIsPlay] = React.useState(false);
   const [start, setStart] = React.useState(false);
   const [player, setPlayer] = React.useState<ChiptuneJsPlayer | null>(null);
+  const [playerReady, setPlayerReady] = React.useState(false);
   const [playingSource, setPlayingSource] = React.useState<Source>(
     () => initialSource || (modArchive(42) as ModArchiveSource)
   );
@@ -32,18 +33,15 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
   const [progress, setProgress] = React.useState(0);
   const [max, setMax] = React.useState(100);
 
+  const playingSourceRef = React.useRef<Source>(playingSource);
+  const playFromSourceRef = React.useRef<(s: Source) => void>(() => {});
+
   useInterval(
     () => {
       if (!player) return;
-      setProgress(player.getPosition());
-      if (player.getPosition() === 0 && player.duration() === 0) {
-        setIsPlay(false);
-        // playFromSource is a hoisted function declaration; useInterval
-        // forwards via savedCallback ref so the closure here always sees
-        // the latest version.
-        // eslint-disable-next-line react-hooks/immutability
-        playFromSource(initialSource || playingSource);
-      }
+      const dur = player.duration || 0;
+      const cur = player.currentTime || 0;
+      if (dur > 0) setProgress(cur);
     },
     isPlay ? 500 : null
   );
@@ -51,25 +49,42 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
     setTitle(sharedTitle);
   }, [sharedTitle]);
   React.useEffect(() => {
-    if (player && initialSource) playFromSource(initialSource);
-  }, [player]);
+    if (player && playerReady && initialSource) playFromSource(initialSource);
+  }, [player, playerReady]);
 
   const initPlayer = () => {
-    setPlayer(new ChiptuneJsPlayer(new ChiptuneJsConfig(0)));
+    const ctx =
+      (typeof window !== "undefined" &&
+        window.__chiptunePrewarmedAudioContext) ||
+      undefined;
+    const p = new ChiptuneJsPlayer({ context: ctx, repeatCount: 0 });
+    if (ctx) p.gain.connect(p.context.destination);
+    p.onInitialized(() => setPlayerReady(true));
+    p.onMetadata((meta) => {
+      setTitle(meta.title);
+      setMax(meta.dur || 0);
+      if (meta.title) document.title = `🎶 ${meta.title} - CoolModFiles`;
+    });
+    p.onEnded(() => {
+      setIsPlay(false);
+      playFromSourceRef.current(initialSource || playingSourceRef.current);
+    });
+    p.onError(() => {
+      setIsPlay(false);
+      playFromSourceRef.current(modArchive(getRandomInt(0, RANDOM_MAX)));
+    });
+    setPlayer(p);
   };
 
   function playFromSource(source: Source) {
     if (!player) return;
     setTitle("Loading");
     setPlayingSource(source);
-    getBuffer(source, player)
+    getBuffer(source)
       .then((buffer) => {
         player.play(buffer);
-        setTitle(player.metadata().title);
-        setMax(player.duration());
         setIsPlay(true);
         player.seek(0);
-        document.title = `🎶 ${player.metadata().title} - CoolModFiles`;
       })
       .catch(() => {
         playFromSource(modArchive(getRandomInt(0, RANDOM_MAX)));
@@ -78,6 +93,13 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
         setLoading(false);
       });
   }
+
+  React.useEffect(() => {
+    playingSourceRef.current = playingSource;
+  }, [playingSource]);
+  React.useEffect(() => {
+    playFromSourceRef.current = playFromSource;
+  });
 
   const togglePlay = () => {
     if (!player) return;

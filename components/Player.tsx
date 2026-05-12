@@ -105,6 +105,18 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const playGenerationRef = React.useRef(0);
   const [repeat, setRepeat] = React.useState(false);
 
+  // chiptune3 is async: the AudioWorklet is loaded after construction,
+  // so the first play() must wait for an onInitialized callback. Refs
+  // give the onEnded handler (registered once at init) access to the
+  // latest playNext/playFromSource closures and repeat/source state.
+  const [playerReady, setPlayerReady] = React.useState(false);
+  const repeatRef = React.useRef(repeat);
+  const playingSourceRef = React.useRef<Source>(playingSource);
+  const playNextRef = React.useRef<() => void>(() => {});
+  const playFromSourceRef = React.useRef<
+    (s: Source, o?: PlaySourceOptions) => void
+  >(() => {});
+
   // Source-drawer state — replaces the two mutually-exclusive
   // helpDrawerOpen/likedModsDrawerOpen flags from the previous design.
   const [drawerOpen, setDrawerOpen] = React.useState(false);
@@ -179,16 +191,18 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     if (upKey || nextKey || nextKeyVim) playNext();
     if (downKey || backKey || backKeyVim) playPrevious();
     if ((rightKey || rightKeyVim) && isPlay && player)
-      player.seek(player.getPosition() + 5);
+      player.seek((player.currentTime || 0) + 5);
     if ((leftKey || leftKeyVim) && isPlay && player)
-      player.seek(player.getPosition() - 5);
+      player.seek((player.currentTime || 0) - 5);
     if (volumeUpKey && player) {
-      setVolume(Math.min(100, volume + 5));
-      player.setVolume(Math.min(100, volume + 5));
+      const next = Math.min(100, volume + 5);
+      setVolume(next);
+      player.setVol(next / 100);
     }
     if (volumeDownKey && player) {
-      setVolume(Math.max(0, volume - 5));
-      player.setVolume(Math.max(0, volume - 5));
+      const next = Math.max(0, volume - 5);
+      setVolume(next);
+      player.setVol(next / 100);
     }
     if (volumeMuteKey) toggleMute();
   }, [
@@ -218,26 +232,53 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   useInterval(
     () => {
       if (!player) return;
-      setProgress(player.getPosition() % player.duration());
-      if (player.getPosition() === 0 && player.duration() === 0) {
-        setIsPlay(false);
-        if (repeat) {
-          playFromSource(playingSource);
-        } else {
-          playNext();
-        }
-      }
+      const dur = player.duration || 0;
+      const cur = player.currentTime || 0;
+      if (dur > 0) setProgress(cur % dur);
     },
     isPlay ? 500 : null
   );
 
   React.useEffect(() => {
-    const jsPlayer = new ChiptuneJsPlayer(
-      new ChiptuneJsConfig(repeat ? -1 : 0, volume)
-    );
+    const ctx =
+      (typeof window !== "undefined" &&
+        window.__chiptunePrewarmedAudioContext) ||
+      undefined;
+    const jsPlayer = new ChiptuneJsPlayer({
+      context: ctx,
+      repeatCount: repeat ? -1 : 0,
+    });
+    // chiptune3 only auto-connects gain -> destination when it created
+    // its own context. When we hand it a prewarmed context, the caller
+    // owns routing.
+    if (ctx) jsPlayer.gain.connect(jsPlayer.context.destination);
+    jsPlayer.setVol(volume / 100);
+    jsPlayer.onInitialized(() => setPlayerReady(true));
+    jsPlayer.onMetadata((meta) => {
+      setMetaData(meta);
+      setTitle(meta.title || "");
+      setMax(meta.dur || 0);
+      if (meta.title) {
+        document.title = `🎶 ${meta.title} - CoolModFiles.com 🎶`;
+      }
+    });
+    jsPlayer.onEnded(() => {
+      setIsPlay(false);
+      if (repeatRef.current) {
+        playFromSourceRef.current(playingSourceRef.current);
+      } else {
+        playNextRef.current();
+      }
+    });
+    // The worklet posts 'err' when libopenmpt can't parse the bytes we
+    // handed it (truncated file, HTML error body, unsupported format).
+    // Without this handler the UI would freeze at "Loading...". Retry
+    // by walking forward in history, same path as natural end-of-track.
+    jsPlayer.onError(() => {
+      setIsPlay(false);
+      playNextRef.current();
+    });
     setPlayer(jsPlayer);
-    console.log("%c " + jsPlayer.getLibraryVersion(), "color: red");
-    console.log("%c " + jsPlayer.getCoreVersion(), "color: red");
   }, []);
 
   React.useEffect(() => {
@@ -245,10 +286,10 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   }, [volume]);
 
   React.useEffect(() => {
-    if (player) {
+    if (player && playerReady) {
       playFromSource(playingSource);
     }
-  }, [player]);
+  }, [player, playerReady]);
 
   // Probe whether the server has LIBRARY_ROOT configured. The Library
   // tab is hidden in the drawer when the API returns 404.
@@ -356,14 +397,14 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         [source.type]: { items: [source], current: 0 },
       }));
     }
-    getBuffer(source, player)
+    getBuffer(source)
       .then((buffer) => {
         if (myGeneration !== playGenerationRef.current) return;
         setLoading(false);
         player.play(buffer);
-        setMetaData(player.metadata());
-        setTitle(player.metadata().title || "");
-        setMax(player.duration());
+        // chiptune3 delivers metadata / duration asynchronously via the
+        // onMetadata handler installed at player-init time; setTitle,
+        // setMetaData, setMax and document.title are updated there.
         setIsPlay(true);
         player.seek(0);
         const permalink = getPermalink(source);
@@ -386,9 +427,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             };
           });
         }
-        document.title = `🎶 ${player.metadata().title} - CoolModFiles.com 🎶`;
         if (confirmToast) {
-          showToast(`▶ Playing ${player.metadata().title || "track"}`);
+          showToast(`▶ Playing`);
         }
       })
       .catch(() => {
@@ -402,10 +442,10 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     if (volume > 0) {
       setUnmuteVolume(volume);
       setVolume(0);
-      player.setVolume(0);
+      player.setVol(0);
     } else {
       setVolume(unmuteVolume);
-      player.setVolume(unmuteVolume);
+      player.setVol(unmuteVolume / 100);
     }
   };
 
@@ -513,6 +553,21 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     });
     saveAs(blob, "coolmods.json");
   };
+
+  // Keep refs current for the onEnded handler — which is registered
+  // once at player init and would otherwise close over stale state.
+  React.useEffect(() => {
+    repeatRef.current = repeat;
+  }, [repeat]);
+  React.useEffect(() => {
+    playingSourceRef.current = playingSource;
+  }, [playingSource]);
+  React.useEffect(() => {
+    playNextRef.current = playNext;
+  });
+  React.useEffect(() => {
+    playFromSourceRef.current = playFromSource;
+  });
 
   return (
     <div>
