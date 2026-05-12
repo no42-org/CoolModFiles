@@ -48,6 +48,7 @@ declare class ChiptuneJsPlayer {
   setRepeatCount(count: number): void;
   setPitch(value: number): void;
   setTempo(value: number): void;
+  setCtl(name: string, value: string): void;
   selectSubsong(index: number): void;
   getCurrentTime(): number | undefined;
   load(url: string): void;

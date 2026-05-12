@@ -4,7 +4,7 @@ It's a web player for chiptune **MOD** files. Open the side drawer (the playlist
 
 ## Sources
 
-The drawer has five tabs: **Mod Archive**, **Library**, **Local**, **♥ Favorites**, **? Help**.
+The drawer has six tabs: **Mod Archive**, **Library**, **Local**, **♥ Favorites**, **? Help**, **🎛 Sound** (Amiga emulation toggle — Off, A500, or A1200).
 
 - **Mod Archive** — drill-in menu for ways to find tracks on [modarchive.org](https://modarchive.org):
   - **🌟 All Featured Modules** — the editor-featured modules chart.
@@ -41,6 +41,7 @@ You can whether use your mouse/touchpad to click on the cyberpunk-themed cool ic
 | [1]              | turn on/off repeat           |
 | [d]              | download the song            |
 | [e]              | copy the embed code          |
+| [m]              | cycle Amiga emulation (off / A500 / A1200) |
 | [/][q]           | show this message            |
 
 ## Sharing
