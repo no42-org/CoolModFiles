@@ -17,6 +17,26 @@ The programmer friends' idea, unfortunately, was beaten by [modarchive.org](http
 
 [Click here to watch the introduction video](https://www.youtube.com/watch?v=NZa5hne8Noo).
 
+## Keyboard shortcuts
+
+| Key                | Action                                          |
+| ------------------ | ----------------------------------------------- |
+| `enter` / `space`  | play / pause                                    |
+| `↑` / `n` / `k`    | play the next (random) song                     |
+| `↓` / `p` / `j`    | play the previous song                          |
+| `→` / `l`          | skip forward 5 seconds                          |
+| `←` / `h`          | skip back 5 seconds                             |
+| `a`                | volume up 5%                                    |
+| `z`                | volume down 5%                                  |
+| `x`                | mute / unmute volume                            |
+| `shift`            | minimize / maximize the player                  |
+| `1`                | turn repeat on / off                            |
+| `d`                | download the current track                      |
+| `e`                | copy the embed code                             |
+| `m`                | cycle Amiga emulation (off / A500 / A1200)      |
+| `/` or `q`         | open in-app Help                                |
+| `esc`              | close the side drawer                           |
+
 ## Development
 
 ```bash
