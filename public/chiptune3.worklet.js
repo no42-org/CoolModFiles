@@ -148,6 +148,18 @@ class MPT extends AudioWorkletProcessor {
 					libopenmpt.stackRestore(stack)
 				}
 				break
+			// CoolModFiles: live-update + config-mutate for the stereo
+			// separation render param. Storing into this.config means
+			// play(buffer) picks up the new value on future track loads
+			// without any main-thread re-application. Clamp to [0, 100]
+			// and fall back to 100 on non-finite values per the spec.
+			case 'setStereoSeparation': {
+				const n = Number.isFinite(v) ? Math.max(0, Math.min(100, Math.trunc(v))) : 100
+				this.config.stereoSeparation = n
+				if (!this.modulePtr) break
+				libopenmpt._openmpt_module_set_render_param(this.modulePtr, OPENMPT_MODULE_RENDER_STEREOSEPARATION_PERCENT, n)
+				break
+			}
 			case 'selectSubsong':
 				if (!this.modulePtr) return
 				libopenmpt._openmpt_module_select_subsong(this.modulePtr, v)

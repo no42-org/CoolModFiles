@@ -49,6 +49,18 @@ function applyAmigaSetting(player: ChiptuneJsPlayer, model: AmigaModel) {
   player.setCtl("render.resampler.emulate_amiga_type", model);
 }
 
+const DEFAULT_STEREO_SEPARATION = 100;
+
+function readStereoSeparation(): number {
+  const raw = localStorage.getItem("audio.stereoSeparation");
+  if (raw === null) return DEFAULT_STEREO_SEPARATION;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return DEFAULT_STEREO_SEPARATION;
+  const i = Math.trunc(n);
+  if (i < 0 || i > 100) return DEFAULT_STEREO_SEPARATION;
+  return i;
+}
+
 type PickRandomNextCtx = {
   latestId: number;
   pickedFiles: File[];
@@ -104,6 +116,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const [unmuteVolume, setUnmuteVolume] = React.useState(DEFAULT_VOLUME);
   const [amigaModel, setAmigaModel] =
     React.useState<AmigaModel>(readAmigaModel);
+  const [stereoSeparation, setStereoSeparation] =
+    React.useState<number>(readStereoSeparation);
   const [maxId] = React.useState(latestId);
   const [playingSource, setPlayingSource] = React.useState<Source>(
     () => initialSource || modArchive(getRandomInt(0, latestId))
@@ -279,9 +293,18 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       (typeof window !== "undefined" &&
         window.__chiptunePrewarmedAudioContext) ||
       undefined;
+    // Pass the persisted stereo-separation value through the constructor
+    // config so the chiptune3 wrapper's automatic {cmd:'config'} post
+    // carries it to the worklet once the AudioWorklet module is ready.
+    // Calling jsPlayer.setStereoSeparation() synchronously here would be
+    // silently dropped — postMsg guards on this.processNode, which only
+    // gets created inside the async audioWorklet.addModule().then().
+    // The worklet's play() handler then reads this.config.stereoSeparation
+    // for every new module; no per-track re-apply needed from Player.tsx.
     const jsPlayer = new ChiptuneJsPlayer({
       context: ctx,
       repeatCount: repeat ? -1 : 0,
+      stereoSeparation,
     });
     // chiptune3 only auto-connects gain -> destination when it created
     // its own context. When we hand it a prewarmed context, the caller
@@ -327,6 +350,10 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     localStorage.setItem("audio.amigaModel", amigaModel);
     if (player) applyAmigaSetting(player, amigaModel);
   }, [amigaModel, player]);
+
+  React.useEffect(() => {
+    localStorage.setItem("audio.stereoSeparation", String(stereoSeparation));
+  }, [stereoSeparation]);
 
   React.useEffect(() => {
     if (player && playerReady) {
@@ -706,6 +733,11 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
               amigaModel,
               setAmigaModel,
               trackType: metaData.type,
+              stereoSeparation,
+              setStereoSeparation: (val) => {
+                setStereoSeparation(val);
+                player?.setStereoSeparation(val);
+              },
             }}
           />
         </div>

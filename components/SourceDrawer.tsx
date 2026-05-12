@@ -52,6 +52,8 @@ type SoundProps = {
   amigaModel: AmigaModel;
   setAmigaModel: (m: AmigaModel) => void;
   trackType?: string;
+  stereoSeparation: number;
+  setStereoSeparation: (v: number) => void;
 };
 
 type SourceDrawerProps = {
