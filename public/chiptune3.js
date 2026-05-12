@@ -131,6 +131,12 @@ export class ChiptuneJsPlayer {
 	// CoolModFiles: generic libopenmpt ctl_set forwarder. Used today
 	// for Amiga emulation reapply; candidate to upstream.
 	setCtl(name, value) { this.postMsg('setCtl', { name, value }) }
+	// CoolModFiles: typed forwarder for the stereo-separation render param.
+	// The worklet stores the value into this.config.stereoSeparation so
+	// subsequent track loads inherit it, and (when a module is loaded)
+	// applies it live via openmpt_module_set_render_param. Candidate to
+	// upstream as a sibling to setCtl.
+	setStereoSeparation(val) { this.postMsg('setStereoSeparation', val) }
 	setPos(val) { this.postMsg('setPos', val) }
 	setOrderRow(o,r) { this.postMsg('setOrderRow', {o:o,r:r}) }
 	setVol(val) { this.gain.gain.value = val }

@@ -4,7 +4,7 @@ It's a web player for chiptune **MOD** files. Open the side drawer (the playlist
 
 ## Sources
 
-The drawer has six tabs: **Mod Archive**, **Library**, **Local**, **♥ Favorites**, **? Help**, **🎛 Sound** (Amiga emulation toggle — Off, A500, or A1200).
+The drawer has six tabs: **Mod Archive**, **Library**, **Local**, **♥ Favorites**, **? Help**, **🎛 Sound** (Amiga emulation toggle — Off, A500, or A1200 — and a stereo separation slider from `0%` mono to `100%` default).
 
 - **Mod Archive** — drill-in menu for ways to find tracks on [modarchive.org](https://modarchive.org):
   - **🌟 All Featured Modules** — the editor-featured modules chart.
