@@ -29,6 +29,26 @@ import type { ModItem } from "../lib/modarchive/types";
 
 const DEFAULT_VOLUME = 80;
 
+type AmigaModel = "off" | "a500" | "a1200";
+const AMIGA_MODELS: AmigaModel[] = ["off", "a500", "a1200"];
+const DEFAULT_AMIGA_MODEL: AmigaModel = "a1200";
+
+function readAmigaModel(): AmigaModel {
+  const raw = localStorage.getItem("audio.amigaModel");
+  return AMIGA_MODELS.includes(raw as AmigaModel)
+    ? (raw as AmigaModel)
+    : DEFAULT_AMIGA_MODEL;
+}
+
+function applyAmigaSetting(player: ChiptuneJsPlayer, model: AmigaModel) {
+  if (model === "off") {
+    player.setCtl("render.resampler.emulate_amiga", "0");
+    return;
+  }
+  player.setCtl("render.resampler.emulate_amiga", "1");
+  player.setCtl("render.resampler.emulate_amiga_type", model);
+}
+
 type PickRandomNextCtx = {
   latestId: number;
   pickedFiles: File[];
@@ -82,6 +102,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     return DEFAULT_VOLUME;
   });
   const [unmuteVolume, setUnmuteVolume] = React.useState(DEFAULT_VOLUME);
+  const [amigaModel, setAmigaModel] =
+    React.useState<AmigaModel>(readAmigaModel);
   const [maxId] = React.useState(latestId);
   const [playingSource, setPlayingSource] = React.useState<Source>(
     () => initialSource || modArchive(getRandomInt(0, latestId))
@@ -112,6 +134,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const [playerReady, setPlayerReady] = React.useState(false);
   const repeatRef = React.useRef(repeat);
   const playingSourceRef = React.useRef<Source>(playingSource);
+  const amigaModelRef = React.useRef<AmigaModel>(amigaModel);
   const playNextRef = React.useRef<() => void>(() => {});
   const playFromSourceRef = React.useRef<
     (s: Source, o?: PlaySourceOptions) => void
@@ -176,6 +199,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const volumeUpKey = useKeyPress("a");
   const volumeDownKey = useKeyPress("z");
   const volumeMuteKey = useKeyPress("x");
+  const amigaKey = useKeyPress("m");
 
   React.useEffect(() => {
     if (spaceKey || enterKey) togglePlay();
@@ -205,6 +229,16 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       player.setVol(next / 100);
     }
     if (volumeMuteKey) toggleMute();
+    if (amigaKey) {
+      // Cycle a1200 -> a500 -> off -> a1200. Toast confirms each press.
+      const order: AmigaModel[] = ["a1200", "a500", "off"];
+      const idx = order.indexOf(amigaModel);
+      const next = order[(idx + 1) % order.length];
+      setAmigaModel(next);
+      const label =
+        next === "off" ? "Off" : next === "a500" ? "A500" : "A1200";
+      showToast(`Amiga: ${label}`);
+    }
   }, [
     spaceKey,
     enterKey,
@@ -227,6 +261,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     volumeUpKey,
     volumeDownKey,
     volumeMuteKey,
+    amigaKey,
   ]);
 
   useInterval(
@@ -258,9 +293,12 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       setMetaData(meta);
       setTitle(meta.title || "");
       setMax(meta.dur || 0);
-      if (meta.title) {
-        document.title = `🎶 ${meta.title} - CoolModFiles.com 🎶`;
-      }
+      // Always stamp the 🎶 prefix so untitled tracks still surface a
+      // "now playing" indicator in the browser tab. The page heading
+      // keeps its own [No Title] fallback when meta.title is empty.
+      document.title = meta.title
+        ? `🎶 ${meta.title} - CoolModFiles.com 🎶`
+        : "🎶 CoolModFiles.com 🎶";
     });
     jsPlayer.onEnded(() => {
       setIsPlay(false);
@@ -284,6 +322,11 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   React.useEffect(() => {
     localStorage.setItem("volume", volume.toString());
   }, [volume]);
+
+  React.useEffect(() => {
+    localStorage.setItem("audio.amigaModel", amigaModel);
+    if (player) applyAmigaSetting(player, amigaModel);
+  }, [amigaModel, player]);
 
   React.useEffect(() => {
     if (player && playerReady) {
@@ -402,6 +445,12 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         if (myGeneration !== playGenerationRef.current) return;
         setLoading(false);
         player.play(buffer);
+        // Override the worklet's hardcoded play() defaults (which stamp
+        // emulate_amiga=1 / type=a1200 on every module) so the user's
+        // current Sound-pane choice wins on every track load. FIFO
+        // postMessage ordering guarantees these arrive before the first
+        // process() cycle pulls audio.
+        applyAmigaSetting(player, amigaModelRef.current);
         // chiptune3 delivers metadata / duration asynchronously via the
         // onMetadata handler installed at player-init time; setTitle,
         // setMetaData, setMax and document.title are updated there.
@@ -563,6 +612,9 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     playingSourceRef.current = playingSource;
   }, [playingSource]);
   React.useEffect(() => {
+    amigaModelRef.current = amigaModel;
+  }, [amigaModel]);
+  React.useEffect(() => {
     playNextRef.current = playNext;
   });
   React.useEffect(() => {
@@ -649,6 +701,11 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
               removeFavoriteModRuntime,
               downloadFavoriteMods,
               downloadFavoriteModsJson,
+            }}
+            soundProps={{
+              amigaModel,
+              setAmigaModel,
+              trackType: metaData.type,
             }}
           />
         </div>
