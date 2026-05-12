@@ -8,13 +8,16 @@ IMAGE_TAG  ?= rc
 ENV_FILE_ARG := $(if $(wildcard .env),--env-file .env,)
 LIBRARY_MOUNT_ARG := $(if $(wildcard ./mods),-v $(CURDIR)/mods:/library:ro -e LIBRARY_ROOT=/library,)
 
-.PHONY: help install lint typecheck audit build test e2e verify format format-check image run clean
+.PHONY: help install dev lint typecheck audit build test e2e verify format format-check image run clean
 
 help: ## Show this help
 	@awk 'BEGIN {FS=":.*?## "} /^[a-zA-Z_-]+:.*?## /{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 install: ## Install dependencies (clean install from lockfile)
 	npm ci
+
+dev: ## Start the Next.js dev server with hot reload
+	npm run dev
 
 lint: install ## Run ESLint
 	npm run lint
