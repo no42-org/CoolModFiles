@@ -293,20 +293,24 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       (typeof window !== "undefined" &&
         window.__chiptunePrewarmedAudioContext) ||
       undefined;
+    // Pass the persisted stereo-separation value through the constructor
+    // config so the chiptune3 wrapper's automatic {cmd:'config'} post
+    // carries it to the worklet once the AudioWorklet module is ready.
+    // Calling jsPlayer.setStereoSeparation() synchronously here would be
+    // silently dropped — postMsg guards on this.processNode, which only
+    // gets created inside the async audioWorklet.addModule().then().
+    // The worklet's play() handler then reads this.config.stereoSeparation
+    // for every new module; no per-track re-apply needed from Player.tsx.
     const jsPlayer = new ChiptuneJsPlayer({
       context: ctx,
       repeatCount: repeat ? -1 : 0,
+      stereoSeparation,
     });
     // chiptune3 only auto-connects gain -> destination when it created
     // its own context. When we hand it a prewarmed context, the caller
     // owns routing.
     if (ctx) jsPlayer.gain.connect(jsPlayer.context.destination);
     jsPlayer.setVol(volume / 100);
-    // One-time push: sync the persisted stereo-separation value into the
-    // worklet's this.config.stereoSeparation. No per-track re-application
-    // is needed — the worklet's play() handler reads this.config when
-    // each new module loads and stamps it via set_render_param.
-    jsPlayer.setStereoSeparation(stereoSeparation);
     jsPlayer.onInitialized(() => setPlayerReady(true));
     jsPlayer.onMetadata((meta) => {
       setMetaData(meta);

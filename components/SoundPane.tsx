@@ -77,6 +77,7 @@ function SoundPane({
                 setStereoSeparation(val);
               }}
               ariaLabelForHandle="Stereo separation"
+              ariaValueTextFormatterForHandle={(val) => `${val} percent`}
             />
             <span className={styles.stereoCaption}>mono</span>
           </div>
