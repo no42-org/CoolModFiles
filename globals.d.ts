@@ -49,6 +49,7 @@ declare class ChiptuneJsPlayer {
   setPitch(value: number): void;
   setTempo(value: number): void;
   setCtl(name: string, value: string): void;
+  setStereoSeparation(value: number): void;
   selectSubsong(index: number): void;
   getCurrentTime(): number | undefined;
   load(url: string): void;

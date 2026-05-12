@@ -49,6 +49,18 @@ function applyAmigaSetting(player: ChiptuneJsPlayer, model: AmigaModel) {
   player.setCtl("render.resampler.emulate_amiga_type", model);
 }
 
+const DEFAULT_STEREO_SEPARATION = 100;
+
+function readStereoSeparation(): number {
+  const raw = localStorage.getItem("audio.stereoSeparation");
+  if (raw === null) return DEFAULT_STEREO_SEPARATION;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return DEFAULT_STEREO_SEPARATION;
+  const i = Math.trunc(n);
+  if (i < 0 || i > 100) return DEFAULT_STEREO_SEPARATION;
+  return i;
+}
+
 type PickRandomNextCtx = {
   latestId: number;
   pickedFiles: File[];
@@ -104,6 +116,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const [unmuteVolume, setUnmuteVolume] = React.useState(DEFAULT_VOLUME);
   const [amigaModel, setAmigaModel] =
     React.useState<AmigaModel>(readAmigaModel);
+  const [stereoSeparation, setStereoSeparation] =
+    React.useState<number>(readStereoSeparation);
   const [maxId] = React.useState(latestId);
   const [playingSource, setPlayingSource] = React.useState<Source>(
     () => initialSource || modArchive(getRandomInt(0, latestId))
@@ -288,6 +302,11 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     // owns routing.
     if (ctx) jsPlayer.gain.connect(jsPlayer.context.destination);
     jsPlayer.setVol(volume / 100);
+    // One-time push: sync the persisted stereo-separation value into the
+    // worklet's this.config.stereoSeparation. No per-track re-application
+    // is needed — the worklet's play() handler reads this.config when
+    // each new module loads and stamps it via set_render_param.
+    jsPlayer.setStereoSeparation(stereoSeparation);
     jsPlayer.onInitialized(() => setPlayerReady(true));
     jsPlayer.onMetadata((meta) => {
       setMetaData(meta);
@@ -327,6 +346,10 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     localStorage.setItem("audio.amigaModel", amigaModel);
     if (player) applyAmigaSetting(player, amigaModel);
   }, [amigaModel, player]);
+
+  React.useEffect(() => {
+    localStorage.setItem("audio.stereoSeparation", String(stereoSeparation));
+  }, [stereoSeparation]);
 
   React.useEffect(() => {
     if (player && playerReady) {
@@ -706,6 +729,11 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
               amigaModel,
               setAmigaModel,
               trackType: metaData.type,
+              stereoSeparation,
+              setStereoSeparation: (val) => {
+                setStereoSeparation(val);
+                player?.setStereoSeparation(val);
+              },
             }}
           />
         </div>
