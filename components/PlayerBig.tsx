@@ -43,7 +43,6 @@ type PlayerBigProps = {
   player: ChiptuneJsPlayer | null;
   volume: number;
   setVolume: (v: number) => void;
-  toggleMute: () => void;
   isPlay: boolean;
   togglePlay: () => void;
   setProgress: (n: number) => void;
@@ -71,7 +70,6 @@ function PlayerBig({
   player,
   volume,
   setVolume,
-  toggleMute,
   isPlay,
   togglePlay,
   setProgress,
@@ -88,12 +86,44 @@ function PlayerBig({
   updateFavoriteModsRuntime,
 }: PlayerBigProps) {
   const [dropDownClass, setDropDownClass] = React.useState(dropDownClose);
+  const [volumePopoverOpen, setVolumePopoverOpen] = React.useState(false);
+  const volumePopoverRef = React.useRef<HTMLDivElement | null>(null);
+  const volumeButtonRef = React.useRef<HTMLButtonElement | null>(null);
 
   React.useEffect(() => {
     document
       .getElementById("repeat")
       ?.classList.toggle(styles.deactive, !repeat);
   }, [repeat]);
+
+  React.useEffect(() => {
+    if (!volumePopoverOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (volumePopoverRef.current?.contains(target)) return;
+      if (volumeButtonRef.current?.contains(target)) return;
+      setVolumePopoverOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setVolumePopoverOpen(false);
+        volumeButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [volumePopoverOpen]);
+
+  React.useEffect(() => {
+    if (volumePopoverOpen) {
+      volumePopoverRef.current?.focus();
+    }
+  }, [volumePopoverOpen]);
 
   const likeCurrentTrack = (
     runtime: FavoriteTrack[],
@@ -118,34 +148,6 @@ function PlayerBig({
   return (
     <React.Fragment>
       <div className={styles.container}>
-        <div className={styles.contentVolume}>
-          <span className={styles.volumePercent}>{volume}%</span>
-          <Slider
-            railStyle={{ backgroundColor: "white", width: 6 }}
-            trackStyle={{ backgroundColor: "#bd00ff", width: 6 }}
-            handleStyle={{
-              borderColor: "#bd00ff",
-              backgroundColor: "#bd00ff",
-            }}
-            value={volume}
-            min={0}
-            max={100}
-            step={1}
-            vertical={true}
-            onChange={(val) => {
-              if (typeof val !== "number" || !player) return;
-              setVolume(val);
-              player.setVol(val / 100);
-            }}
-          />
-          <VolumeIcon
-            className={styles.volumeIcon}
-            height="30"
-            width="30"
-            volume={volume}
-            onClick={toggleMute}
-          />
-        </div>
         <div className={styles.contentPlayer}>
           <div className={styles.wheader}>
             <div className={styles.downloadWrap}>
@@ -264,7 +266,50 @@ function PlayerBig({
             />
           </div>
           <div className={styles.footer}>
-            <div className={styles.footerLeft} />
+            <div className={styles.footerLeft}>
+              <button
+                ref={volumeButtonRef}
+                type="button"
+                className={styles.volumeButton}
+                aria-label="Volume"
+                aria-haspopup="dialog"
+                aria-expanded={volumePopoverOpen}
+                aria-controls="volume-popover"
+                onClick={() => setVolumePopoverOpen((v) => !v)}
+              >
+                <VolumeIcon height="30" width="30" volume={volume} />
+              </button>
+              {volumePopoverOpen && (
+                <div
+                  ref={volumePopoverRef}
+                  id="volume-popover"
+                  role="dialog"
+                  aria-label="Volume control"
+                  tabIndex={-1}
+                  className={styles.volumePopover}
+                >
+                  <Slider
+                    railStyle={{ backgroundColor: "white", height: 6 }}
+                    trackStyle={{ backgroundColor: "#bd00ff", height: 6 }}
+                    handleStyle={{
+                      borderColor: "#bd00ff",
+                      backgroundColor: "#bd00ff",
+                    }}
+                    className={styles.volumePopoverSlider}
+                    value={volume}
+                    min={0}
+                    max={100}
+                    step={1}
+                    onChange={(val) => {
+                      if (typeof val !== "number" || !player) return;
+                      setVolume(val);
+                      player.setVol(val / 100);
+                    }}
+                  />
+                  <span className={styles.volumePopoverPercent}>{volume}%</span>
+                </div>
+              )}
+            </div>
             <div className={styles.footerCenter}>
               <ArrowIcon
                 className={styles.arrow}

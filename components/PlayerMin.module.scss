@@ -74,7 +74,64 @@
 }
 
 .downloadButton {
-  align-self: flex-start;
+  align-self: flex-end;
+}
+
+.headerRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  position: relative;
+}
+
+.volumeButton {
+  background: none;
+  border: 0;
+  padding: 2px 0 2px 4px;
+  margin-right: -15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+
+  svg {
+    margin-right: 15px;
+  }
+
+  &:active:hover {
+    opacity: 0.5;
+  }
+}
+
+.volumePopover {
+  position: absolute;
+  top: calc(75%);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background-color: #0a0a0a;
+  border: 1px solid #bd00ff;
+  border-radius: 6px;
+  min-width: 200px;
+  outline: none;
+}
+
+.volumePopoverSlider {
+  flex: 1;
+  min-width: 100px;
+}
+
+.volumePopoverPercent {
+  font-size: 10px;
+  user-select: none;
+  min-width: 32px;
+  text-align: right;
 }
 
 @media screen and (max-width: 600px) {
@@ -87,7 +144,7 @@
     width: 100px;
   }
 
-  .downloadButton {
+  .headerRight {
     display: none;
   }
 }

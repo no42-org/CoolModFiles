@@ -3,7 +3,13 @@ import Slider from "rc-slider";
 import moment from "moment";
 
 import styles from "./PlayerMin.module.scss";
-import { ArrowIcon, DownloadButton, PauseButton, PlayButton } from "../icons";
+import {
+  ArrowIcon,
+  DownloadButton,
+  PauseButton,
+  PlayButton,
+  VolumeIcon,
+} from "../icons";
 
 type PlayerMinProps = {
   title: string;
@@ -13,6 +19,8 @@ type PlayerMinProps = {
   max: number;
   isPlay: boolean;
   player: ChiptuneJsPlayer | null;
+  volume: number;
+  setVolume: (v: number) => void;
   togglePlay: () => void;
   setProgress: (n: number) => void;
   changeSize: () => void;
@@ -27,11 +35,46 @@ function PlayerMin({
   max,
   isPlay,
   player,
+  volume,
+  setVolume,
   togglePlay,
   setProgress,
   changeSize,
   downloadTrack,
 }: PlayerMinProps) {
+  const [volumePopoverOpen, setVolumePopoverOpen] = React.useState(false);
+  const volumePopoverRef = React.useRef<HTMLDivElement | null>(null);
+  const volumeButtonRef = React.useRef<HTMLButtonElement | null>(null);
+
+  React.useEffect(() => {
+    if (!volumePopoverOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (volumePopoverRef.current?.contains(target)) return;
+      if (volumeButtonRef.current?.contains(target)) return;
+      setVolumePopoverOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setVolumePopoverOpen(false);
+        volumeButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [volumePopoverOpen]);
+
+  React.useEffect(() => {
+    if (volumePopoverOpen) {
+      volumePopoverRef.current?.focus();
+    }
+  }, [volumePopoverOpen]);
+
   return (
     <React.Fragment>
       <div className={styles.header}>
@@ -46,12 +89,56 @@ function PlayerMin({
             <li>Track Id: #{trackId}</li>
           </ul>
         </div>
-        <DownloadButton
-          className={styles.downloadButton}
-          height="20"
-          width="50"
-          onClick={() => downloadTrack()}
-        />
+        <div className={styles.headerRight}>
+          <DownloadButton
+            className={styles.downloadButton}
+            height="20"
+            width="50"
+            onClick={() => downloadTrack()}
+          />
+          <button
+            ref={volumeButtonRef}
+            type="button"
+            className={styles.volumeButton}
+            aria-label="Volume"
+            aria-haspopup="dialog"
+            aria-expanded={volumePopoverOpen}
+            aria-controls="volume-popover-min"
+            onClick={() => setVolumePopoverOpen((v) => !v)}
+          >
+            <VolumeIcon height="20" width="20" volume={volume} />
+          </button>
+          {volumePopoverOpen && (
+            <div
+              ref={volumePopoverRef}
+              id="volume-popover-min"
+              role="dialog"
+              aria-label="Volume control"
+              tabIndex={-1}
+              className={styles.volumePopover}
+            >
+              <Slider
+                railStyle={{ backgroundColor: "white", height: 6 }}
+                trackStyle={{ backgroundColor: "#bd00ff", height: 6 }}
+                handleStyle={{
+                  borderColor: "#bd00ff",
+                  backgroundColor: "#bd00ff",
+                }}
+                className={styles.volumePopoverSlider}
+                value={volume}
+                min={0}
+                max={100}
+                step={1}
+                onChange={(val) => {
+                  if (typeof val !== "number" || !player) return;
+                  setVolume(val);
+                  player.setVol(val / 100);
+                }}
+              />
+              <span className={styles.volumePopoverPercent}>{volume}%</span>
+            </div>
+          )}
+        </div>
       </div>
       <div className={styles.seekbarWrapper}>
         <div style={{ flex: 1 }}>

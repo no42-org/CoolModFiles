@@ -683,7 +683,6 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
               player={player}
               volume={volume}
               setVolume={setVolume}
-              toggleMute={toggleMute}
               isPlay={isPlay}
               togglePlay={togglePlay}
               setProgress={setProgress}
@@ -751,6 +750,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             max={max}
             isPlay={isPlay}
             player={player}
+            volume={volume}
+            setVolume={setVolume}
             togglePlay={togglePlay}
             setProgress={setProgress}
             changeSize={changeSize}
