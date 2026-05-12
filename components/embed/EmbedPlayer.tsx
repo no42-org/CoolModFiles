@@ -63,7 +63,9 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
     p.onMetadata((meta) => {
       setTitle(meta.title);
       setMax(meta.dur || 0);
-      if (meta.title) document.title = `🎶 ${meta.title} - CoolModFiles`;
+      document.title = meta.title
+        ? `🎶 ${meta.title} - CoolModFiles`
+        : "🎶 CoolModFiles";
     });
     p.onEnded(() => {
       setIsPlay(false);

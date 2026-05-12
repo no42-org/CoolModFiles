@@ -10,6 +10,7 @@ import LibraryCatalog from "./library/LibraryCatalog";
 import LocalCatalog from "./local/LocalCatalog";
 import LikedMods from "./LikedMods";
 import BackSide from "./BackSide";
+import SoundPane from "./SoundPane";
 import ModArchivePane, { type ChartId } from "./modarchive/ModArchivePane";
 import { DownloadButton } from "../icons";
 import { useKeyPress } from "../hooks";
@@ -22,7 +23,10 @@ export type DrawerTabId =
   | "library"
   | "local"
   | "favorites"
-  | "help";
+  | "help"
+  | "sound";
+
+type AmigaModel = "off" | "a500" | "a1200";
 
 type LibraryProps = {
   currentPath: string;
@@ -44,6 +48,12 @@ type FavoritesProps = {
   downloadFavoriteModsJson: () => void;
 };
 
+type SoundProps = {
+  amigaModel: AmigaModel;
+  setAmigaModel: (m: AmigaModel) => void;
+  trackType?: string;
+};
+
 type SourceDrawerProps = {
   open: boolean;
   activeTab: DrawerTabId;
@@ -56,6 +66,7 @@ type SourceDrawerProps = {
   libraryProps: LibraryProps;
   localProps: LocalProps;
   favoritesProps: FavoritesProps;
+  soundProps: SoundProps;
 };
 
 type TabDef = { id: DrawerTabId; label: string; iconOnly?: boolean };
@@ -72,6 +83,7 @@ function SourceDrawer({
   libraryProps,
   localProps,
   favoritesProps,
+  soundProps,
 }: SourceDrawerProps) {
   const escKey = useKeyPress("Escape");
   React.useEffect(() => {
@@ -92,6 +104,7 @@ function SourceDrawer({
       { id: "local", label: "Local" },
       { id: "favorites", label: "♥", iconOnly: true },
       { id: "help", label: "?", iconOnly: true },
+      { id: "sound", label: "🎛", iconOnly: true },
     ] as Array<TabDef | false>
   ).filter((t): t is TabDef => Boolean(t));
 
@@ -152,6 +165,7 @@ function SourceDrawer({
           </>
         )}
         {activeTab === "help" && <BackSide content={helpContent} />}
+        {activeTab === "sound" && <SoundPane {...soundProps} />}
       </div>
     </div>
   );
