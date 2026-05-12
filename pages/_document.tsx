@@ -104,8 +104,8 @@ class MyDocument extends Document {
           <meta name="msapplication-TileColor" content="#000000" />
           <meta name="msapplication-TileImage" content="/favicon-144.png" />
           <meta name="msapplication-config" content="/browserconfig.xml" />
-          <script src="/chiptune2.js"></script>
-          <script src="/libopenmpt.js"></script>
+          <script src="/audio-prewarm.js"></script>
+          <script type="module" src="/chiptune3.js"></script>
         </Head>
         <body>
           <Main />

@@ -45,18 +45,31 @@ export const library = (path: string): LibrarySource => ({
 });
 export const local = (file: File): LocalSource => ({ type: "local", file });
 
-// Player surface needed by getBuffer for the modarchive case.
-type PlayerLike = {
-  load: (input: string) => Promise<ArrayBuffer>;
-};
-
-export async function getBuffer(
-  source: Source,
-  player: PlayerLike
-): Promise<ArrayBuffer> {
+export async function getBuffer(source: Source): Promise<ArrayBuffer> {
   switch (source.type) {
-    case "modarchive":
-      return player.load(`jsplayer.php?moduleid=${source.id}`);
+    case "modarchive": {
+      // modarchive.org/jsplayer.php returns a ZIP-wrapped module. The
+      // old chiptune2 path got away with feeding ZIP bytes straight to
+      // libopenmpt because that WASM build had zlib compiled in;
+      // chiptune3's libopenmpt.worklet.js does not. api.modarchive.org/
+      // downloads.php returns the raw module bytes — same endpoint the
+      // download button already uses, with open CORS.
+      const res = await fetch(
+        `https://api.modarchive.org/downloads.php?moduleid=${source.id}`
+      );
+      if (!res.ok) throw new Error(`modarchive fetch failed: ${res.status}`);
+      const buf = await res.arrayBuffer();
+      // downloads.php returns 200 OK with a 16-byte body ("Invalid ID
+      // Error") for unknown moduleids. No real module is anywhere near
+      // that small, so reject early and let the caller's .catch retry
+      // with a different random id.
+      if (buf.byteLength < 100) {
+        throw new Error(
+          `modarchive returned ${buf.byteLength} bytes for ${source.id} — likely Invalid ID`
+        );
+      }
+      return buf;
+    }
     case "library": {
       const res = await fetch(
         `/api/library/file?path=${encodeURIComponent(source.path)}`
