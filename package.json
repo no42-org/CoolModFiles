@@ -33,7 +33,7 @@
     "dotenv": "^17.4.2",
     "file-saver": "^2.0.5",
     "jszip": "^3.8.0",
-    "markdown-to-jsx": "^9.7.16",
+    "markdown-to-jsx": "^9.8.0",
     "moment": "^2.29.4",
     "next": "^16.2.5",
     "rc-slider": "^11.1.9",
