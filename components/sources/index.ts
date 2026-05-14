@@ -1,9 +1,15 @@
-// Source abstraction. Each source produces an ArrayBuffer for player.play().
+// Source abstraction. Each source produces input for player.play().
 //
 // Shape:
-//   { type: "modarchive", id: number }
-//   { type: "library",    path: string }
-//   { type: "local",      file: File }
+//   { type: "modarchive",  id: number }
+//   { type: "library",     path: string }
+//   { type: "local",       file: File }
+//   { type: "tfmx-local",  tfx: File, sam: File, base: string }
+//
+// All variants except `tfmx-local` produce a single ArrayBuffer. The
+// `tfmx-local` variant produces a pair `{ tfx, sam }` because TFMX is
+// a two-file Amiga format and libtfmx auto-discovers the sample bank
+// by filename from the music-data file's path.
 
 export const MODULE_EXTENSIONS = [
   ".mod",
@@ -27,8 +33,18 @@ export function isModuleFile(filename: string): boolean {
 export type ModArchiveSource = { type: "modarchive"; id: number };
 export type LibrarySource = { type: "library"; path: string };
 export type LocalSource = { type: "local"; file: File };
+export type TfmxLocalSource = {
+  type: "tfmx-local";
+  tfx: File;
+  sam: File;
+  base: string;
+};
 
-export type Source = ModArchiveSource | LibrarySource | LocalSource;
+export type Source =
+  | ModArchiveSource
+  | LibrarySource
+  | LocalSource
+  | TfmxLocalSource;
 export type SourceType = Source["type"];
 export type SourceHistoryBuckets = Record<
   SourceType,
@@ -44,8 +60,16 @@ export const library = (path: string): LibrarySource => ({
   path,
 });
 export const local = (file: File): LocalSource => ({ type: "local", file });
+export const tfmxLocal = (
+  tfx: File,
+  sam: File,
+  base: string
+): TfmxLocalSource => ({ type: "tfmx-local", tfx, sam, base });
 
-export async function getBuffer(source: Source): Promise<ArrayBuffer> {
+export type TfmxBuffers = { tfx: ArrayBuffer; sam: ArrayBuffer };
+export type SourceBuffer = ArrayBuffer | TfmxBuffers;
+
+export async function getBuffer(source: Source): Promise<SourceBuffer> {
   switch (source.type) {
     case "modarchive": {
       // modarchive.org/jsplayer.php returns a ZIP-wrapped module. The
@@ -79,6 +103,13 @@ export async function getBuffer(source: Source): Promise<ArrayBuffer> {
     }
     case "local":
       return source.file.arrayBuffer();
+    case "tfmx-local":
+      // Two buffers, read in parallel; the worklet expects both before
+      // it can mount the MEMFS files and call tfx_load.
+      return {
+        tfx: await source.tfx.arrayBuffer(),
+        sam: await source.sam.arrayBuffer(),
+      };
   }
 }
 
@@ -89,12 +120,15 @@ export function getPermalink(source: Source): string | null {
     case "library":
       return `?source=library&path=${encodeURIComponent(source.path)}`;
     case "local":
+    case "tfmx-local":
       return null;
   }
 }
 
 export function isFavoritable(source: Source): boolean {
-  return source.type !== "local";
+  // Whitelist server-resolvable sources. Local-style sources (LocalSource,
+  // TfmxLocalSource) have no cross-session identity.
+  return source.type === "modarchive" || source.type === "library";
 }
 
 export function getEmbedUrl(source: Source, domain?: string): string | null {
@@ -107,6 +141,7 @@ export function getEmbedUrl(source: Source, domain?: string): string | null {
       return `${base}/embed/library/${segments.join("/")}`;
     }
     case "local":
+    case "tfmx-local":
       return null;
   }
 }
@@ -134,5 +169,7 @@ export function sourceKey(source: Source): string {
       return `library:${source.path}`;
     case "local":
       return `local:${source.file.name}:${source.file.size}:${source.file.lastModified}`;
+    case "tfmx-local":
+      return `tfmx-local:${source.base}:${source.tfx.size}:${source.sam.size}`;
   }
 }

@@ -12,6 +12,7 @@ import {
   type Source,
   type ModArchiveSource,
 } from "../sources";
+import { AudioPlayer } from "../../lib/audio-player";
 
 type EmbedPlayerProps = {
   initialSource: Source | null;
@@ -21,7 +22,7 @@ type EmbedPlayerProps = {
 function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
   const [isPlay, setIsPlay] = React.useState(false);
   const [start, setStart] = React.useState(false);
-  const [player, setPlayer] = React.useState<ChiptuneJsPlayer | null>(null);
+  const [player, setPlayer] = React.useState<AudioPlayer | null>(null);
   const [playerReady, setPlayerReady] = React.useState(false);
   const [playingSource, setPlayingSource] = React.useState<Source>(
     () => initialSource || (modArchive(42) as ModArchiveSource)
@@ -57,7 +58,7 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
       (typeof window !== "undefined" &&
         window.__chiptunePrewarmedAudioContext) ||
       undefined;
-    const p = new ChiptuneJsPlayer({ context: ctx, repeatCount: 0 });
+    const p = new AudioPlayer({ context: ctx, repeatCount: 0 });
     if (ctx) p.gain.connect(p.context.destination);
     p.onInitialized(() => setPlayerReady(true));
     p.onMetadata((meta) => {
@@ -84,7 +85,10 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
     setPlayingSource(source);
     getBuffer(source)
       .then((buffer) => {
-        player.play(buffer);
+        // The embed page is restricted to modarchive + library sources;
+        // neither ever yields the TfmxBuffers two-buffer shape. Cast is
+        // safe; the alternative branch would be dead code today.
+        player.play(buffer as ArrayBuffer);
         setIsPlay(true);
         player.seek(0);
       })

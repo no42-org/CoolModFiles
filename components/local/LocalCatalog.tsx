@@ -1,25 +1,54 @@
 import React from "react";
 import styles from "./LocalCatalog.module.scss";
-import { local, isModuleFile, type LocalSource } from "../sources";
+import {
+  local,
+  isModuleFile,
+  sourceKey,
+  type LocalSource,
+  type TfmxLocalSource,
+} from "../sources";
+import { detectTfmxPairs } from "./tfmx-pairs";
 
 type LocalCatalogProps = {
   pickedFiles: File[];
   setPickedFiles: React.Dispatch<React.SetStateAction<File[]>>;
-  onPlay: (source: LocalSource) => void;
+  pickedTfmxPairs: TfmxLocalSource[];
+  setPickedTfmxPairs: React.Dispatch<React.SetStateAction<TfmxLocalSource[]>>;
+  onPlay: (source: LocalSource | TfmxLocalSource) => void;
 };
 
 function LocalCatalog({
   pickedFiles,
   setPickedFiles,
+  pickedTfmxPairs,
+  setPickedTfmxPairs,
   onPlay,
 }: LocalCatalogProps) {
   const [dragActive, setDragActive] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   const addFiles = (incoming: FileList | File[]) => {
-    const filtered = Array.from(incoming).filter((f) => isModuleFile(f.name));
-    if (filtered.length === 0) return;
-    setPickedFiles((prev) => [...prev, ...filtered]);
+    // Pair detection runs FIRST so that TFMX halves are claimed before
+    // isModuleFile gets a chance to drop them. Unpaired TFMX halves
+    // (filename matches the half-pattern but no companion) are silently
+    // discarded per the tfmx-playback spec.
+    const all = Array.from(incoming);
+    const { pairs, remainingFiles } = detectTfmxPairs(all);
+    const modules = remainingFiles.filter((f) => isModuleFile(f.name));
+
+    if (pairs.length === 0 && modules.length === 0) return;
+
+    if (modules.length > 0) {
+      setPickedFiles((prev) => [...prev, ...modules]);
+    }
+    if (pairs.length > 0) {
+      setPickedTfmxPairs((prev) => {
+        // De-dup by sourceKey so the same pair dropped twice collapses.
+        const existing = new Set(prev.map((p) => sourceKey(p)));
+        const fresh = pairs.filter((p) => !existing.has(sourceKey(p)));
+        return fresh.length ? [...prev, ...fresh] : prev;
+      });
+    }
   };
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -39,6 +68,8 @@ function LocalCatalog({
     if (e.target.files) addFiles(e.target.files);
     e.target.value = "";
   };
+
+  const isEmpty = pickedFiles.length === 0 && pickedTfmxPairs.length === 0;
 
   return (
     <div className={styles.wrapper}>
@@ -70,10 +101,20 @@ function LocalCatalog({
           onChange={onPick}
         />
       </div>
-      {pickedFiles.length === 0 ? (
+      {isEmpty ? (
         <div className={styles.empty}>No files picked yet.</div>
       ) : (
         <ul className={styles.list}>
+          {pickedTfmxPairs.map((pair, idx) => (
+            <li
+              key={`tfmx:${sourceKey(pair)}:${idx}`}
+              className={styles.row}
+              onClick={() => onPlay(pair)}
+              title={`${pair.tfx.name} + ${pair.sam.name}`}
+            >
+              {pair.base} (TFMX)
+            </li>
+          ))}
           {pickedFiles.map((file, idx) => (
             <li
               key={`${file.name}:${file.size}:${file.lastModified}:${idx}`}

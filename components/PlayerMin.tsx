@@ -10,6 +10,7 @@ import {
   PlayButton,
   VolumeIcon,
 } from "../icons";
+import type { AudioPlayer } from "../lib/audio-player";
 
 type PlayerMinProps = {
   title: string;
@@ -18,7 +19,7 @@ type PlayerMinProps = {
   progress: number;
   max: number;
   isPlay: boolean;
-  player: ChiptuneJsPlayer | null;
+  player: AudioPlayer | null;
   volume: number;
   setVolume: (v: number) => void;
   togglePlay: () => void;
