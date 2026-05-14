@@ -14,7 +14,11 @@ import SoundPane from "./SoundPane";
 import ModArchivePane, { type ChartId } from "./modarchive/ModArchivePane";
 import { DownloadButton } from "../icons";
 import { useKeyPress } from "../hooks";
-import type { LibrarySource, LocalSource } from "./sources";
+import type {
+  LibrarySource,
+  LocalSource,
+  TfmxLocalSource,
+} from "./sources";
 import type { FavoriteTrack } from "./LikedMod";
 import type { ModItem } from "../lib/modarchive/types";
 
@@ -37,7 +41,9 @@ type LibraryProps = {
 type LocalProps = {
   pickedFiles: File[];
   setPickedFiles: React.Dispatch<React.SetStateAction<File[]>>;
-  onPlay: (source: LocalSource) => void;
+  pickedTfmxPairs: TfmxLocalSource[];
+  setPickedTfmxPairs: React.Dispatch<React.SetStateAction<TfmxLocalSource[]>>;
+  onPlay: (source: LocalSource | TfmxLocalSource) => void;
 };
 
 type FavoritesProps = {
