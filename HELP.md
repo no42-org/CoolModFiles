@@ -15,7 +15,7 @@ The drawer has six tabs: **Mod Archive**, **Library**, **Local**, **♥ Favorite
   - **🎤 Artist Charts** — top artists; tap to see and play their mods.
   - **🎼 By Genre** — browse modarchive's genre index, tap a genre to see and play its mods.
 - **Library** — browses a server-curated collection (only visible when the operator has configured one).
-- **Local** — drop your own MOD files into the browser. Files stay on your device for the session — nothing is uploaded.
+- **Local** — drop your own MOD files into the browser. Files stay on your device for the session — nothing is uploaded. **TFMX pairs** (Hülsbeck / Hippel two-file Amiga game music) are also accepted here — drop both halves of each pair together (`*.tfx + *.sam`, `mdat.X + smpl.X`, or `*.mdat + *.smpl`) and the catalog surfaces each pair as a single row labelled `(TFMX)`. Multi-subsong tracks currently play the first subsong; in-UI subsong selection is on the follow-up list.
 - **♥ Favorites** — your saved tracks. Click any to play.
 - **? Help** — this document.
 

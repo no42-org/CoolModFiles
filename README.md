@@ -17,6 +17,13 @@ The programmer friends' idea, unfortunately, was beaten by [modarchive.org](http
 
 [Click here to watch the introduction video](https://www.youtube.com/watch?v=NZa5hne8Noo).
 
+## Formats
+
+CoolModFiles plays two families of Amiga music:
+
+- **Module files** (`.mod`, `.xm`, `.it`, `.s3m`, `.mptm`, `.stm`, `.mtm`, `.669`, `.med`, `.okt`, `.ult`) through [libopenmpt](https://lib.openmpt.org/libopenmpt/) — available from all sources (Mod Archive, Library, Local drop).
+- **TFMX** (Chris Hülsbeck / Jochen Hippel two-file Amiga game-music format, e.g. Apidya, Turrican) through [libtfmxaudiodecoder](https://github.com/mschwendt/libtfmxaudiodecoder) — **Local drop only**. Drop both halves of each pair (`*.tfx + *.sam`, `mdat.* + smpl.*`, or `*.mdat + *.smpl`) and the catalog surfaces each pair as a single row.
+
 ## Keyboard shortcuts
 
 | Key                | Action                                          |
