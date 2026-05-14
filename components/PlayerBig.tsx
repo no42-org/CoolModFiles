@@ -20,6 +20,7 @@ import {
 import LoadingState from "./LoadingState";
 import { showToast } from "../utils";
 import type { FavoriteTrack } from "./LikedMod";
+import type { AudioPlayer } from "../lib/audio-player";
 
 const dropDownOpen = [styles.dropdownContent, styles.dropdownOpen].join(" ");
 const dropDownClose = styles.dropdownContent;
@@ -40,7 +41,7 @@ type PlayerBigProps = {
   canFavorite: boolean;
   progress: number;
   max: number;
-  player: ChiptuneJsPlayer | null;
+  player: AudioPlayer | null;
   volume: number;
   setVolume: (v: number) => void;
   isPlay: boolean;

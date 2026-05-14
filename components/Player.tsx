@@ -16,6 +16,7 @@ import {
   modArchive,
   library,
   local,
+  tfmxLocal,
   getBuffer,
   getPermalink,
   sourceKey,
@@ -23,9 +24,12 @@ import {
   getEmbedHtml,
   type Source,
   type SourceHistoryBuckets,
+  type TfmxLocalSource,
+  type TfmxBuffers,
 } from "./sources";
 import type { FavoriteTrack } from "./LikedMod";
 import type { ModItem } from "../lib/modarchive/types";
+import { AudioPlayer } from "../lib/audio-player";
 
 const DEFAULT_VOLUME = 80;
 
@@ -40,7 +44,10 @@ function readAmigaModel(): AmigaModel {
     : DEFAULT_AMIGA_MODEL;
 }
 
-function applyAmigaSetting(player: ChiptuneJsPlayer, model: AmigaModel) {
+function applyAmigaSetting(player: AudioPlayer, model: AmigaModel) {
+  // setCtl is a libopenmpt ctl_set forwarder; AudioPlayer routes it to
+  // the inner ChiptuneJsPlayer when the active engine is libopenmpt and
+  // silently drops it for TFMX (libtfmx has no equivalent ctl table).
   if (model === "off") {
     player.setCtl("render.resampler.emulate_amiga", "0");
     return;
@@ -64,11 +71,12 @@ function readStereoSeparation(): number {
 type PickRandomNextCtx = {
   latestId: number;
   pickedFiles: File[];
+  pickedTfmxPairs: TfmxLocalSource[];
 };
 
 async function pickRandomNext(
   source: Source,
-  { latestId, pickedFiles }: PickRandomNextCtx
+  { latestId, pickedFiles, pickedTfmxPairs }: PickRandomNextCtx
 ): Promise<Source | null> {
   switch (source.type) {
     case "modarchive":
@@ -86,6 +94,9 @@ async function pickRandomNext(
         return null;
       }
     }
+    case "tfmx-local":
+      if (!pickedTfmxPairs || pickedTfmxPairs.length === 0) return null;
+      return pickedTfmxPairs[getRandomInt(0, pickedTfmxPairs.length - 1)];
   }
 }
 
@@ -107,7 +118,7 @@ type PlayerProps = {
 
 function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const [isPlay, setIsPlay] = React.useState(false);
-  const [player, setPlayer] = React.useState<ChiptuneJsPlayer | null>(null);
+  const [player, setPlayer] = React.useState<AudioPlayer | null>(null);
   const [volume, setVolume] = React.useState<number>(() => {
     const rememberedVolume = parseInt(localStorage.getItem("volume") || "");
     if (rememberedVolume > -1) return rememberedVolume;
@@ -137,6 +148,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     modarchive: { items: [], current: -1 },
     library: { items: [], current: -1 },
     local: { items: [], current: -1 },
+    "tfmx-local": { items: [], current: -1 },
   });
   const playGenerationRef = React.useRef(0);
   const [repeat, setRepeat] = React.useState(false);
@@ -153,6 +165,18 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const playFromSourceRef = React.useRef<
     (s: Source, o?: PlaySourceOptions) => void
   >(() => {});
+
+  // Circuit breaker for cascading playback errors. Without this, a single
+  // un-playable source (e.g. a Safari File whose blob has been revoked,
+  // or a CORS-blocked modarchive endpoint) triggers the catch path which
+  // retries with modarchive(random) — which can also fail — creating a
+  // tight loop of state updates that visibly "flickers" the UI. We allow
+  // up to 5 consecutive errors within 2 seconds; the 6th stops the chain
+  // and surfaces a toast.
+  const errorBurstRef = React.useRef<{ count: number; firstAt: number }>({
+    count: 0,
+    firstAt: 0,
+  });
 
   // Source-drawer state — replaces the two mutually-exclusive
   // helpDrawerOpen/likedModsDrawerOpen flags from the previous design.
@@ -171,6 +195,9 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   // Catalog state lifted from pages/index.tsx so the drawer (which
   // hosts the catalogs) can live inside this component's render tree.
   const [pickedFiles, setPickedFiles] = React.useState<File[]>([]);
+  const [pickedTfmxPairs, setPickedTfmxPairs] = React.useState<
+    TfmxLocalSource[]
+  >([]);
   const [libraryPath, setLibraryPath] = React.useState("");
   const [libraryAvailable, setLibraryAvailable] = React.useState(false);
 
@@ -301,14 +328,17 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     // gets created inside the async audioWorklet.addModule().then().
     // The worklet's play() handler then reads this.config.stereoSeparation
     // for every new module; no per-track re-apply needed from Player.tsx.
-    const jsPlayer = new ChiptuneJsPlayer({
+    //
+    // AudioPlayer wraps ChiptuneJsPlayer (libopenmpt) and lazy-loads
+    // the TFMX engine on first TFMX play; MOD cold-start is unchanged.
+    const jsPlayer = new AudioPlayer({
       context: ctx,
       repeatCount: repeat ? -1 : 0,
       stereoSeparation,
     });
-    // chiptune3 only auto-connects gain -> destination when it created
-    // its own context. When we hand it a prewarmed context, the caller
-    // owns routing.
+    // The inner ChiptuneJsPlayer only auto-connects gain -> destination
+    // when it created its own context. When we hand it a prewarmed
+    // context, the caller owns routing.
     if (ctx) jsPlayer.gain.connect(jsPlayer.context.destination);
     jsPlayer.setVol(volume / 100);
     jsPlayer.onInitialized(() => setPlayerReady(true));
@@ -429,6 +459,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       const next = await pickRandomNext(playingSource, {
         latestId: maxId,
         pickedFiles,
+        pickedTfmxPairs,
       });
       if (next) playFromSource(next);
     }
@@ -448,6 +479,30 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
 
   const playFromSource = (source: Source, options: PlaySourceOptions = {}) => {
     if (!player) return;
+
+    // Circuit breaker at the entry: bursts of playFromSource within 2s
+    // catch BOTH cascade paths (catch→retry on getBuffer failure, AND
+    // onError→playNext→playFromSource on worklet error). User clicks are
+    // far slower than 5/2s, so a real user won't trip it.
+    {
+      const now = Date.now();
+      const burst = errorBurstRef.current;
+      if (now - burst.firstAt > 2000) {
+        burst.firstAt = now;
+        burst.count = 0;
+      }
+      burst.count += 1;
+      if (burst.count > 5) {
+        setLoading(false);
+        setTitle("Playback unavailable");
+        setIsPlay(false);
+        showToast("Couldn't load track — try a different source");
+        burst.count = 0;
+        burst.firstAt = 0;
+        return;
+      }
+    }
+
     const { resetHistory = false, confirmToast = false } = options;
     // Generation counter — protects against stale .then handlers from
     // earlier playFromSource calls overwriting fresh state when the
@@ -471,12 +526,18 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       .then((buffer) => {
         if (myGeneration !== playGenerationRef.current) return;
         setLoading(false);
-        player.play(buffer);
+        if (source.type === "tfmx-local") {
+          const b = buffer as TfmxBuffers;
+          player.play({ tfx: b.tfx, sam: b.sam, base: source.base });
+        } else {
+          player.play(buffer as ArrayBuffer);
+        }
         // Override the worklet's hardcoded play() defaults (which stamp
         // emulate_amiga=1 / type=a1200 on every module) so the user's
         // current Sound-pane choice wins on every track load. FIFO
         // postMessage ordering guarantees these arrive before the first
-        // process() cycle pulls audio.
+        // process() cycle pulls audio. For TFMX sources this is a no-op
+        // inside AudioPlayer (libtfmx has no Amiga emulation ctl).
         applyAmigaSetting(player, amigaModelRef.current);
         // chiptune3 delivers metadata / duration asynchronously via the
         // onMetadata handler installed at player-init time; setTitle,
@@ -509,6 +570,9 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       })
       .catch(() => {
         if (myGeneration !== playGenerationRef.current) return;
+        // Burst guard at the entry of playFromSource will break the
+        // chain if these retries pile up; this catch just kicks the
+        // next retry.
         playFromSource(modArchive(getRandomInt(0, maxId)));
       });
   };
@@ -718,6 +782,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             localProps={{
               pickedFiles,
               setPickedFiles,
+              pickedTfmxPairs,
+              setPickedTfmxPairs,
               onPlay: playFromDrawer,
             }}
             favoritesProps={{
