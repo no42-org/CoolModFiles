@@ -71,6 +71,10 @@ class TFX extends AudioWorkletProcessor {
 		this.currentMs = 0
 		this.endFired = false
 		this.formatName = ''
+		// Throttle pos messages to ~20Hz. process() runs every 128 frames
+		// (~2.7ms @ 48kHz = ~375Hz); without this we'd flood the main
+		// thread with hundreds of useless messages per second.
+		this.lastPostedMs = -1
 		// Last virtual MEMFS paths — unlinked between plays to keep
 		// the in-memory FS bounded.
 		this.lastTfx = ''
@@ -128,14 +132,21 @@ class TFX extends AudioWorkletProcessor {
 		if (looping && this.durationMs > 0 && this.currentMs >= this.durationMs) {
 			this.currentMs -= this.durationMs
 			this.endFired = false
+			this.lastPostedMs = -1   // wrap: force the next pos through.
 		}
-		this.port.postMessage({
-			cmd: 'pos',
-			pos: this.currentMs / 1000,
-			order: 0,
-			pattern: 0,
-			row: 0,
-		})
+		// Throttle to ~20Hz: only post when we've advanced ≥50ms since the
+		// last message. Player.tsx polls duration/currentTime every 500ms,
+		// so anything faster than 20Hz is invisible to the UI.
+		if (this.currentMs - this.lastPostedMs >= 50) {
+			this.port.postMessage({
+				cmd: 'pos',
+				pos: this.currentMs / 1000,
+				order: 0,
+				pattern: 0,
+				row: 0,
+			})
+			this.lastPostedMs = this.currentMs
+		}
 
 		return true
 	}
@@ -144,7 +155,10 @@ class TFX extends AudioWorkletProcessor {
 		const v = msg.data.val
 		switch (msg.data.cmd) {
 			case 'config':
-				this.config = v
+				// Shallow-merge: an incoming partial config (e.g. just
+				// {repeatCount}) must not erase the defaults set up in the
+				// constructor (stereoSeparation, interpolationFilter, …).
+				this.config = { ...this.config, ...v }
 				break
 			case 'play':
 				this._play(v)
@@ -160,6 +174,12 @@ class TFX extends AudioWorkletProcessor {
 				break
 			case 'stop':
 				this._stop()
+				// Ack the stop back to the facade so cross-engine play()
+				// can wait until the audio thread has actually applied the
+				// stop (decoder=0 → process() returns silence) before
+				// starting libopenmpt. Without this ack there's a postMessage
+				// drain window where both engines mix into the master gain.
+				this.port.postMessage({ cmd: 'stopped' })
 				break
 			case 'meta':
 				this._meta()
@@ -230,12 +250,11 @@ class TFX extends AudioWorkletProcessor {
 		// Reset paused flag so a pause→stop→play sequence isn't stuck on silence.
 		this.paused = false
 
-		const tfxBytes = val?.tfx instanceof Uint8Array
-			? val.tfx
-			: new Uint8Array(val?.tfx ?? new ArrayBuffer(0))
-		const samBytes = val?.sam instanceof Uint8Array
-			? val.sam
-			: new Uint8Array(val?.sam ?? new ArrayBuffer(0))
+		// AudioPlayer.play() posts {tfx, sam} as ArrayBuffer (structured
+		// clone preserves the type); we only need the ArrayBuffer→Uint8Array
+		// wrap for MEMFS writeFile.
+		const tfxBytes = new Uint8Array(val?.tfx ?? new ArrayBuffer(0))
+		const samBytes = new Uint8Array(val?.sam ?? new ArrayBuffer(0))
 		// Sanitise to a filename-safe ASCII slug. libtfmx uses fopen
 		// internally; spaces and unicode in pair base-names (e.g. "Apidya - Load")
 		// would otherwise force quoting concerns. `|| 'song'` covers the
@@ -336,6 +355,7 @@ class TFX extends AudioWorkletProcessor {
 		this.endFired = false
 		this.paused = false
 		this.formatName = ''
+		this.lastPostedMs = -1
 	}
 
 	_unlinkVirtual() {

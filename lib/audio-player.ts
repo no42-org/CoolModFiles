@@ -93,6 +93,12 @@ export class AudioPlayer {
 
   private handlers: Array<{ eventName: EventName; handler: Handler }> = [];
 
+  // One-shot callback waiting for a {cmd:'stopped'} ack from the TFMX
+  // worklet. Cross-engine play() uses this to delay starting libopenmpt
+  // until the worklet has applied its stop — otherwise both engines
+  // briefly mix into the master gain.
+  private pendingStopAck?: () => void;
+
   constructor(cfg: AudioPlayerConfig = {}) {
     // Hand the config straight to ChiptuneJsPlayer. If the caller passed
     // a prewarmed context (the documented pattern in audio-prewarm.js +
@@ -147,7 +153,15 @@ export class AudioPlayer {
   // existing "Loading..." state.
   private ensureTfmx(): Promise<void> {
     if (!this.tfmxReady) {
-      this.tfmxReady = this.context.audioWorklet
+      // If a previous attempt registered a node but the chain still
+      // rejected (e.g. AudioWorkletNode constructor threw on Safari
+      // after addModule resolved), disconnect the orphan before
+      // recreating — otherwise it stays attached to this.gain forever.
+      if (this.tfmxNode) {
+        try { this.tfmxNode.disconnect(); } catch { /* not connected */ }
+        this.tfmxNode = undefined;
+      }
+      const chain = this.context.audioWorklet
         .addModule("/tfmx.worklet.js")
         .then(() => {
           this.tfmxNode = new AudioWorkletNode(this.context, "tfmx-processor", {
@@ -165,12 +179,17 @@ export class AudioPlayer {
           // setVol() controls both engines transparently. The non-active
           // engine emits silence each block per the AudioWorklet contract.
           this.tfmxNode.connect(this.gain);
-        })
-        .catch((e) => {
-          console.error("[AudioPlayer] tfmx.worklet.js failed to load", e);
-          this.tfmxReady = undefined; // allow retry on next play
-          throw e;
         });
+      // Single catch covers BOTH addModule rejection AND any throw inside
+      // the .then body (AudioWorkletNode constructor can throw on Safari
+      // pre-iOS 14.5). Without this, a throw in the .then body would
+      // leave tfmxReady as a permanently-rejected promise that all
+      // subsequent play() calls await silently.
+      this.tfmxReady = chain.catch((e) => {
+        console.error("[AudioPlayer] tfmx engine init failed", e);
+        this.tfmxReady = undefined;
+        throw e;
+      });
     }
     return this.tfmxReady;
   }
@@ -219,6 +238,18 @@ export class AudioPlayer {
         }
         this.fireEvent("onError", { type: String(data.val ?? "") });
         break;
+      case "stopped": {
+        // Worklet acks that it has applied a 'stop' command. Used by
+        // cross-engine play() to delay starting libopenmpt until the
+        // TFMX worklet has actually silenced its output. Fires regardless
+        // of `this.active` because the transition has already flipped it.
+        const cb = this.pendingStopAck;
+        if (cb) {
+          this.pendingStopAck = undefined;
+          cb();
+        }
+        break;
+      }
       default:
         // Forward-compatibility: unknown commands are dropped silently
         // (matches chiptune3.js's default-case console.log style without
@@ -243,32 +274,73 @@ export class AudioPlayer {
       const myGen = ++this.tfmxGeneration;
       // Silence the libopenmpt engine while TFMX takes over the voice.
       this.chiptune.stop();
-      void this.ensureTfmx().then(() => {
-        // Generation guard: if play(other) or stop() ran between the
-        // ensureTfmx() call and its resolution, our generation is stale
-        // and we MUST NOT post the play. Without this, two engines could
-        // render audio simultaneously (TFMX→MOD switch) or a stop()
-        // could be silently overridden by a deferred play (TFMX→stop).
-        if (myGen !== this.tfmxGeneration) return;
-        if (!this.tfmxNode) return;
-        this.tfmxNode.port.postMessage({
-          cmd: "play",
-          val: {
-            tfx: input.tfx,
-            sam: input.sam,
-            base: input.base ?? "song",
-          },
+      this.ensureTfmx()
+        .then(() => {
+          // Generation guard: if play(other) or stop() ran between the
+          // ensureTfmx() call and its resolution, our generation is stale
+          // and we MUST NOT post the play. Without this, two engines could
+          // render audio simultaneously (TFMX→MOD switch) or a stop()
+          // could be silently overridden by a deferred play (TFMX→stop).
+          if (myGen !== this.tfmxGeneration) return;
+          if (!this.tfmxNode) return;
+          this.tfmxNode.port.postMessage({
+            cmd: "play",
+            val: {
+              tfx: input.tfx,
+              sam: input.sam,
+              base: input.base ?? "song",
+            },
+          });
+        })
+        .catch((e) => {
+          // ensureTfmx() failed (addModule rejected, or the .then body
+          // threw). The worklet was never registered so it can't emit
+          // 'err' on its own — surface as a synthetic onError so
+          // Player.tsx's onError → playNext path can recover. Without
+          // this the UI hangs on "Loading…" forever.
+          if (myGen !== this.tfmxGeneration) return;
+          console.error("[AudioPlayer] tfmx play aborted", e);
+          this.fireEvent("onError", { type: "tfmx-init" });
         });
-      });
     } else {
+      const wasTfmx = this.active === "tfmx";
       this.active = "libopenmpt";
       this.tfmxGeneration++;  // invalidate any pending TFMX play
-      // Silence the TFMX engine if it had been playing.
-      if (this.tfmxNode) {
-        this.tfmxNode.port.postMessage({ cmd: "stop" });
+      if (wasTfmx && this.tfmxNode) {
+        // Cross-engine switch: post stop, then wait for the worklet's
+        // {cmd:'stopped'} ack before starting libopenmpt — otherwise the
+        // TFMX process() keeps writing PCM into the shared gain during
+        // the postMessage drain window and both engines briefly mix.
+        const node = this.tfmxNode;
+        node.port.postMessage({ cmd: "stop" });
+        this.waitForStopAck_().then(() => this.chiptune.play(input));
+      } else {
+        // libopenmpt was already active (or no TFMX has ever played):
+        // the worklet's process() is already returning silence (decoder=0),
+        // so no ack handshake is needed.
+        if (this.tfmxNode) {
+          this.tfmxNode.port.postMessage({ cmd: "stop" });
+        }
+        this.chiptune.play(input);
       }
-      this.chiptune.play(input);
     }
+  }
+
+  private waitForStopAck_(timeoutMs = 100): Promise<void> {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        if (this.pendingStopAck === finish) this.pendingStopAck = undefined;
+        resolve();
+      };
+      this.pendingStopAck = finish;
+      // Safety net: if the worklet never replies (init lost, processor
+      // disposed, ack postMessage dropped), proceed after a short wait
+      // so the user doesn't hang on a silent transition.
+      setTimeout(finish, timeoutMs);
+    });
   }
 
   pause(): void {
@@ -343,12 +415,10 @@ export class AudioPlayer {
 
   setStereoSeparation(value: number): void {
     this.chiptune.setStereoSeparation(value);
-    // TFMX engine doesn't currently map to libopenmpt's stereo-separation
-    // semantics (different scale: libtfmx 100=full stereo, 50=mono); the
-    // worklet accepts the message and ignores it for now.
-    if (this.tfmxNode) {
-      this.tfmxNode.port.postMessage({ cmd: "setStereoSeparation", val: value });
-    }
+    // Do NOT forward to the TFMX worklet: libtfmx uses a different scale
+    // (100=full stereo / 50=mono vs libopenmpt's 0..100), and the worklet
+    // does not implement the control today — it would no-op anyway.
+    // Forward only when libtfmx separation is actually wired up.
   }
 
   selectSubsong(index: number): void {
@@ -366,6 +436,28 @@ export class AudioPlayer {
   /** Fetch a tracker module from a URL and play it. libopenmpt-only path. */
   load(url: string): void {
     this.chiptune.load(url);
+  }
+
+  /**
+   * Tear down player-owned resources. Disconnects the TFMX worklet node
+   * from the master gain, clears the handler list, and invalidates any
+   * pending TFMX play resolution. Safe to call multiple times.
+   *
+   * Does NOT close the AudioContext — it may be the shared prewarmed
+   * context owned by audio-prewarm.js. Whoever constructed the
+   * AudioPlayer owns the context lifecycle.
+   */
+  dispose(): void {
+    this.tfmxGeneration++;
+    if (this.tfmxNode) {
+      try { this.tfmxNode.port.postMessage({ cmd: "stop" }); } catch { /* port closed */ }
+      try { this.tfmxNode.disconnect(); } catch { /* not connected */ }
+      this.tfmxNode = undefined;
+    }
+    this.tfmxReady = undefined;
+    this.pendingStopAck = undefined;
+    this.handlers = [];
+    this.chiptune.stop();
   }
 
   // ---------------------------------------------------------------------
