@@ -100,7 +100,11 @@ function LocalCatalog({
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
       >
-        <div>Drop MOD files here</div>
+        <div>Drop MOD or TFMX files here</div>
+        <div className={styles.dropHint}>
+          .mod .xm .it .s3m .mptm .stm .mtm .669 .med .okt .ult · tfx+sam ·
+          mdat+smpl
+        </div>
         <button
           className={styles.pickButton}
           onClick={() => inputRef.current?.click()}
