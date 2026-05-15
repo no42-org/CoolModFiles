@@ -1,25 +1,73 @@
 import React from "react";
 import styles from "./LocalCatalog.module.scss";
-import { local, isModuleFile, type LocalSource } from "../sources";
+import {
+  local,
+  isModuleFile,
+  sourceKey,
+  type LocalSource,
+  type TfmxLocalSource,
+} from "../sources";
+import { detectTfmxPairs } from "./tfmx-pairs";
+import { showToast } from "../../utils";
 
 type LocalCatalogProps = {
   pickedFiles: File[];
   setPickedFiles: React.Dispatch<React.SetStateAction<File[]>>;
-  onPlay: (source: LocalSource) => void;
+  pickedTfmxPairs: TfmxLocalSource[];
+  setPickedTfmxPairs: React.Dispatch<React.SetStateAction<TfmxLocalSource[]>>;
+  onPlay: (source: LocalSource | TfmxLocalSource) => void;
 };
 
 function LocalCatalog({
   pickedFiles,
   setPickedFiles,
+  pickedTfmxPairs,
+  setPickedTfmxPairs,
   onPlay,
 }: LocalCatalogProps) {
   const [dragActive, setDragActive] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   const addFiles = (incoming: FileList | File[]) => {
-    const filtered = Array.from(incoming).filter((f) => isModuleFile(f.name));
-    if (filtered.length === 0) return;
-    setPickedFiles((prev) => [...prev, ...filtered]);
+    // Pair detection runs FIRST so that TFMX halves are claimed before
+    // isModuleFile gets a chance to drop them. Per local-files-mode spec:
+    // both halves of a TFMX pair must be in the same drop — unpaired
+    // halves are reported via toast so the user knows to drop the
+    // companion together.
+    const all = Array.from(incoming);
+    const { pairs, remainingFiles, collisions, unpaired } =
+      detectTfmxPairs(all);
+    const modules = remainingFiles.filter((f) => isModuleFile(f.name));
+
+    // Surface collisions: when a folder drop contains two halves with the
+    // same base name from different subdirectories, last-write-wins silently
+    // discarded one. Tell the user which base(s) collapsed.
+    if (collisions.length > 0) {
+      const names = collisions.slice(0, 3).join(", ");
+      const more = collisions.length > 3 ? ` (+${collisions.length - 3} more)` : "";
+      showToast(`Duplicate TFMX pair(s): ${names}${more} — only one kept`);
+    }
+    // Surface unpaired halves so the user knows their drop produced no
+    // catalog row.
+    if (unpaired.length > 0) {
+      const names = unpaired.slice(0, 3).join(", ");
+      const more = unpaired.length > 3 ? ` (+${unpaired.length - 3} more)` : "";
+      showToast(`Unpaired TFMX half: ${names}${more} — drop the matching file together`);
+    }
+
+    if (pairs.length === 0 && modules.length === 0) return;
+
+    if (modules.length > 0) {
+      setPickedFiles((prev) => [...prev, ...modules]);
+    }
+    if (pairs.length > 0) {
+      setPickedTfmxPairs((prev) => {
+        // De-dup by sourceKey so the same pair dropped twice collapses.
+        const existing = new Set(prev.map((p) => sourceKey(p)));
+        const fresh = pairs.filter((p) => !existing.has(sourceKey(p)));
+        return fresh.length ? [...prev, ...fresh] : prev;
+      });
+    }
   };
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -39,6 +87,8 @@ function LocalCatalog({
     if (e.target.files) addFiles(e.target.files);
     e.target.value = "";
   };
+
+  const isEmpty = pickedFiles.length === 0 && pickedTfmxPairs.length === 0;
 
   return (
     <div className={styles.wrapper}>
@@ -70,10 +120,20 @@ function LocalCatalog({
           onChange={onPick}
         />
       </div>
-      {pickedFiles.length === 0 ? (
+      {isEmpty ? (
         <div className={styles.empty}>No files picked yet.</div>
       ) : (
         <ul className={styles.list}>
+          {pickedTfmxPairs.map((pair, idx) => (
+            <li
+              key={`tfmx:${sourceKey(pair)}:${idx}`}
+              className={styles.row}
+              onClick={() => onPlay(pair)}
+              title={`${pair.tfx.name} + ${pair.sam.name}`}
+            >
+              {pair.base} (TFMX)
+            </li>
+          ))}
           {pickedFiles.map((file, idx) => (
             <li
               key={`${file.name}:${file.size}:${file.lastModified}:${idx}`}
