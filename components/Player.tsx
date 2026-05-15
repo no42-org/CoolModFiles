@@ -525,6 +525,11 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     getBuffer(source)
       .then((buffer) => {
         if (myGeneration !== playGenerationRef.current) return;
+        // Successful track start — reset the error-burst counter so a
+        // power user pressing `n` rapidly through valid tracks doesn't
+        // accumulate towards the breaker threshold.
+        errorBurstRef.current.count = 0;
+        errorBurstRef.current.firstAt = 0;
         setLoading(false);
         if (source.type === "tfmx-local") {
           const b = buffer as TfmxBuffers;
