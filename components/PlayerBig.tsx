@@ -218,7 +218,7 @@ function PlayerBig({
           metaData.songs.length > 0 ? (
             <div className={styles.subsongRow} aria-live="polite">
               <label htmlFor="subsongPicker" className={styles.subsongLabel}>
-                Subsong:
+                Tune:
               </label>
               <select
                 id="subsongPicker"
@@ -226,11 +226,22 @@ function PlayerBig({
                 value={selectedSubsong}
                 onChange={(e) => onSubsongChange(Number(e.target.value))}
               >
-                {metaData.songs.map((name, idx) => (
-                  <option key={idx} value={idx} title={name}>
-                    {name}
-                  </option>
-                ))}
+                {metaData.songs.map((name, idx) => {
+                  // Both worklets emit "Subsong N" as a fallback when the
+                  // engine has no real per-song name (always for libtfmx,
+                  // most of the time for libopenmpt). Rewrite that fallback
+                  // to a self-locating "Tune N of M" form; pass real names
+                  // through unchanged.
+                  const total = metaData.songs?.length ?? 0;
+                  const display = /^Subsong \d+$/.test(name)
+                    ? `Tune ${idx + 1} of ${total}`
+                    : name;
+                  return (
+                    <option key={idx} value={idx} title={display}>
+                      {display}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           ) : null}
