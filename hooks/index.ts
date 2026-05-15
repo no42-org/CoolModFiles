@@ -38,6 +38,10 @@ function useKeyPress(targetKey: string): boolean {
       }
     };
     const upHandler = (e: KeyboardEvent) => {
+      // Mirror the down guard so a future consumer relying on paired
+      // down/up semantics (e.g. push-to-talk) sees consistent state when
+      // either edge lands inside a form control.
+      if (isFormFocused(e.target)) return;
       if (e.key.toLowerCase() === targetKey.toLowerCase()) {
         setKeyPressed(false);
       }

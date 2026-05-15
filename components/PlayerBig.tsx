@@ -22,6 +22,7 @@ import { showToast } from "../utils";
 import type { FavoriteTrack } from "./LikedMod";
 import type { AudioPlayer } from "../lib/audio-player";
 import type { MetaData } from "./Player";
+import { formatSubsongName } from "./subsong-format";
 
 const dropDownOpen = [styles.dropdownContent, styles.dropdownOpen].join(" ");
 const dropDownClose = styles.dropdownContent;
@@ -216,7 +217,7 @@ function PlayerBig({
           (metaData.numSubsongs ?? 0) > 1 &&
           metaData.songs &&
           metaData.songs.length > 0 ? (
-            <div className={styles.subsongRow} aria-live="polite">
+            <div className={styles.subsongRow}>
               <label htmlFor="subsongPicker" className={styles.subsongLabel}>
                 Tune:
               </label>
@@ -224,24 +225,26 @@ function PlayerBig({
                 id="subsongPicker"
                 className={styles.subsongPicker}
                 value={selectedSubsong}
-                onChange={(e) => onSubsongChange(Number(e.target.value))}
+                onChange={(e) => {
+                  onSubsongChange(Number(e.target.value));
+                  // Return focus to body so global hotkeys (space, n, p, …)
+                  // resume working immediately after a pick. Without this
+                  // the <select> retains focus and useKeyPress's form-focus
+                  // guard suppresses every hotkey until the user clicks away.
+                  e.currentTarget.blur();
+                }}
               >
-                {metaData.songs.map((name, idx) => {
-                  // Both worklets emit "Subsong N" as a fallback when the
-                  // engine has no real per-song name (always for libtfmx,
-                  // most of the time for libopenmpt). Rewrite that fallback
-                  // to a self-locating "Tune N of M" form; pass real names
-                  // through unchanged.
-                  const total = metaData.songs?.length ?? 0;
-                  const display = /^Subsong \d+$/.test(name)
-                    ? `Tune ${idx + 1} of ${total}`
-                    : name;
-                  return (
-                    <option key={idx} value={idx} title={display}>
-                      {display}
-                    </option>
-                  );
-                })}
+                {(() => {
+                  const total = metaData.songs.length;
+                  return metaData.songs.map((name, idx) => {
+                    const display = formatSubsongName(name, idx, total);
+                    return (
+                      <option key={idx} value={idx} title={display}>
+                        {display}
+                      </option>
+                    );
+                  });
+                })()}
               </select>
             </div>
           ) : null}
