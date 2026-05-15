@@ -107,12 +107,14 @@ async function pickRandomNext(
   }
 }
 
-type MetaData = {
+export type MetaData = {
   artist?: string;
   title?: string;
   date?: string;
   type?: string;
   message?: string;
+  songs?: string[];
+  numSubsongs?: number;
 };
 
 type PlaySourceOptions = { resetHistory?: boolean; confirmToast?: boolean };
@@ -142,6 +144,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   );
   const trackId = playingSource.type === "modarchive" ? playingSource.id : null;
   const [metaData, setMetaData] = React.useState<MetaData>({});
+  const [selectedSubsong, setSelectedSubsong] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [title, setTitle] = React.useState("Loading...");
   const [progress, setProgress] = React.useState(0);
@@ -350,7 +353,15 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     jsPlayer.setVol(volume / 100);
     jsPlayer.onInitialized(() => setPlayerReady(true));
     jsPlayer.onMetadata((meta) => {
-      setMetaData(meta);
+      setMetaData({
+        artist: meta.artist,
+        title: meta.title,
+        date: meta.date,
+        type: meta.type,
+        message: meta.message,
+        songs: Array.isArray(meta.songs) ? meta.songs : undefined,
+        numSubsongs: meta.song?.numSubsongs,
+      });
       // TFMX modules frequently have empty internal titles (libtfmx's
       // tfx_get_name returns "" for mdat.*/smpl.* rips). Fall back to
       // the pair's base name so the catalog row label also appears in
@@ -485,6 +496,20 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     }
   };
 
+  const handleSubsongChange = (idx: number) => {
+    if (!player) return;
+    // Clamp to the current track's subsong count. Stale state (e.g. the
+    // user picked subsong 5 on a libopenmpt mod, then switched to a
+    // TFMX pair with 2 subsongs) combined with a click that lands
+    // before onMetadata arrives can otherwise post selectSubsong(5) at
+    // a worklet that only has subsongs 0..1. libopenmpt would ignore;
+    // libtfmx's tfx_reinit may produce undefined behaviour.
+    const count = metaData.numSubsongs ?? 0;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= count) return;
+    setSelectedSubsong(idx);
+    player.selectSubsong(idx);
+  };
+
   const playPrevious = () => {
     const bucket = history[playingSource.type] || { items: [], current: -1 };
     if (bucket.current > 0) {
@@ -533,6 +558,12 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     setLoading(true);
     setIsPlay(false);
     setTitle("Loading...");
+    setSelectedSubsong(0);
+    // Clear songs/numSubsongs so the picker hides until the new track's
+    // onMetadata arrives — setLoading(false) lands in .then(buffer) BEFORE
+    // the worklet posts 'meta' for the new track, so without this the
+    // picker briefly shows the previous track's options.
+    setMetaData((m) => ({ ...m, songs: undefined, numSubsongs: undefined }));
     player.pause();
     setPlayingSource(source);
     if (resetHistory) {
@@ -805,6 +836,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
               copyEmbed={copyEmbed}
               updateFavoriteModsRuntime={updateFavoriteModsRuntime}
               favoriteModsRuntime={favoriteModsRuntime}
+              selectedSubsong={selectedSubsong}
+              onSubsongChange={handleSubsongChange}
             />
           </div>
           <SourceDrawer
@@ -853,6 +886,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
           <PlayerMin
             title={title}
             loading={loading}
+            metaData={metaData}
             trackId={trackId}
             progress={progress}
             max={max}
@@ -864,6 +898,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             setProgress={setProgress}
             changeSize={changeSize}
             downloadTrack={downloadTrack}
+            selectedSubsong={selectedSubsong}
+            onSubsongChange={handleSubsongChange}
           />
         </div>
       )}

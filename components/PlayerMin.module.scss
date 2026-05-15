@@ -34,6 +34,35 @@
   }
 }
 
+.subsongRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.subsongLabel {
+  color: #8e8e8e;
+}
+
+.subsongPicker {
+  background-color: #0a0a0a;
+  color: white;
+  border: 1px solid #bd00ff;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  max-width: 60%;
+
+  &:focus {
+    outline: 2px solid #bd00ff;
+    outline-offset: 1px;
+  }
+}
+
 .seekbarWrapper {
   margin-top: 10px;
   display: flex;

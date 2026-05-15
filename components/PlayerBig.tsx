@@ -21,17 +21,11 @@ import LoadingState from "./LoadingState";
 import { showToast } from "../utils";
 import type { FavoriteTrack } from "./LikedMod";
 import type { AudioPlayer } from "../lib/audio-player";
+import type { MetaData } from "./Player";
+import { formatSubsongName } from "./subsong-format";
 
 const dropDownOpen = [styles.dropdownContent, styles.dropdownOpen].join(" ");
 const dropDownClose = styles.dropdownContent;
-
-type MetaData = {
-  artist?: string;
-  title?: string;
-  date?: string;
-  type?: string;
-  message?: string;
-};
 
 type PlayerBigProps = {
   title: string;
@@ -58,6 +52,8 @@ type PlayerBigProps = {
   copyEmbed: () => void;
   favoriteModsRuntime: FavoriteTrack[];
   updateFavoriteModsRuntime: (next: FavoriteTrack[]) => void;
+  selectedSubsong: number;
+  onSubsongChange: (idx: number) => void;
 };
 
 function PlayerBig({
@@ -85,6 +81,8 @@ function PlayerBig({
   copyEmbed,
   favoriteModsRuntime,
   updateFavoriteModsRuntime,
+  selectedSubsong,
+  onSubsongChange,
 }: PlayerBigProps) {
   const [dropDownClass, setDropDownClass] = React.useState(dropDownClose);
   const [volumePopoverOpen, setVolumePopoverOpen] = React.useState(false);
@@ -215,6 +213,41 @@ function PlayerBig({
           ) : (
             <LoadingState />
           )}
+          {!loading &&
+          (metaData.numSubsongs ?? 0) > 1 &&
+          metaData.songs &&
+          metaData.songs.length > 0 ? (
+            <div className={styles.subsongRow}>
+              <label htmlFor="subsongPicker" className={styles.subsongLabel}>
+                Tune:
+              </label>
+              <select
+                id="subsongPicker"
+                className={styles.subsongPicker}
+                value={selectedSubsong}
+                onChange={(e) => {
+                  onSubsongChange(Number(e.target.value));
+                  // Return focus to body so global hotkeys (space, n, p, …)
+                  // resume working immediately after a pick. Without this
+                  // the <select> retains focus and useKeyPress's form-focus
+                  // guard suppresses every hotkey until the user clicks away.
+                  e.currentTarget.blur();
+                }}
+              >
+                {(() => {
+                  const total = metaData.songs.length;
+                  return metaData.songs.map((name, idx) => {
+                    const display = formatSubsongName(name, idx, total);
+                    return (
+                      <option key={idx} value={idx} title={display}>
+                        {display}
+                      </option>
+                    );
+                  });
+                })()}
+              </select>
+            </div>
+          ) : null}
           <Slider
             railStyle={{ backgroundColor: "white", height: 6 }}
             trackStyle={{ backgroundColor: "#bd00ff", height: 6 }}
