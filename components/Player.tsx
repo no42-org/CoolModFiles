@@ -498,6 +498,14 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
 
   const handleSubsongChange = (idx: number) => {
     if (!player) return;
+    // Clamp to the current track's subsong count. Stale state (e.g. the
+    // user picked subsong 5 on a libopenmpt mod, then switched to a
+    // TFMX pair with 2 subsongs) combined with a click that lands
+    // before onMetadata arrives can otherwise post selectSubsong(5) at
+    // a worklet that only has subsongs 0..1. libopenmpt would ignore;
+    // libtfmx's tfx_reinit may produce undefined behaviour.
+    const count = metaData.numSubsongs ?? 0;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= count) return;
     setSelectedSubsong(idx);
     player.selectSubsong(idx);
   };
