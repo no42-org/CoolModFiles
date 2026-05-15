@@ -34,7 +34,6 @@ EMSCRIPTEN_KEEPALIVE int      tfx_song_end(void* d)                   { return t
 EMSCRIPTEN_KEEPALIVE int      tfx_songs(void* d)                      { return tfmxdec_songs(d); }
 EMSCRIPTEN_KEEPALIVE uint32_t tfx_duration(void* d)                   { return tfmxdec_duration(d); }
 EMSCRIPTEN_KEEPALIVE void     tfx_seek(void* d, int32_t ms)           { tfmxdec_seek(d, ms); }
-EMSCRIPTEN_KEEPALIVE const char* tfx_format_id(void* d)               { return tfmxdec_format_id(d); }
 EMSCRIPTEN_KEEPALIVE const char* tfx_format_name(void* d)             { return tfmxdec_format_name(d); }
 EMSCRIPTEN_KEEPALIVE void        tfx_buffer_fill(void* d, void* b, uint32_t l) { tfmxdec_buffer_fill(d, b, l); }
 EMSCRIPTEN_KEEPALIVE const char* tfx_get_name(void* d)                { return tfmxdec_get_name(d); }
