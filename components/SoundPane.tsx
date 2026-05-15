@@ -26,28 +26,41 @@ function SoundPane({
   setStereoSeparation,
 }: SoundPaneProps) {
   const isMod = (trackType || "").toLowerCase() === "mod";
+  // Both controls (Amiga emulation, stereo separation) are libopenmpt
+  // ctl-table forwarders. libtfmx ignores them today (see audio-player
+  // facade's setStereoSeparation / setCtl). When a non-MOD track is
+  // playing we grey the whole panel and surface a single explanation,
+  // rather than letting users twiddle settings that have no effect.
+  const inactive = !!trackType && !isMod;
 
   return (
-    <div className={styles.wrapper}>
-      <h2 className={styles.sectionHeading}>Amiga emulation</h2>
-
-      {!isMod && trackType ? (
+    <div
+      className={`${styles.wrapper} ${inactive ? styles.inactive : ""}`}
+      aria-disabled={inactive || undefined}
+    >
+      {inactive ? (
         <p className={styles.note}>
-          Amiga emulation only affects classic MOD files. Current track is
-          type &quot;{trackType}&quot; — your choice will apply on the next
-          MOD track.
+          Sound settings only affect classic MOD files. Current track is
+          type &quot;{trackType}&quot; — your choices will apply on the
+          next MOD track.
         </p>
       ) : null}
 
+      <h2 className={styles.sectionHeading}>Amiga emulation</h2>
+
       <div className={styles.options} role="radiogroup" aria-label="Amiga emulation">
         {OPTIONS.map((opt) => (
-          <label key={opt.value} className={styles.option}>
+          <label
+            key={opt.value}
+            className={`${styles.option} ${inactive ? styles.optionDisabled : ""}`}
+          >
             <input
               type="radio"
               name="amigaModel"
               value={opt.value}
               checked={amigaModel === opt.value}
               onChange={() => setAmigaModel(opt.value)}
+              disabled={inactive}
             />
             <span className={styles.optionLabel}>
               <span className={styles.optionTitle}>{opt.label}</span>
@@ -76,6 +89,7 @@ function SoundPane({
                 if (typeof val !== "number") return;
                 setStereoSeparation(val);
               }}
+              disabled={inactive}
               ariaLabelForHandle="Stereo separation"
               ariaValueTextFormatterForHandle={(val) => `${val} percent`}
             />
