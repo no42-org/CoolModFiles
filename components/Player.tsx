@@ -113,6 +113,8 @@ type MetaData = {
   date?: string;
   type?: string;
   message?: string;
+  songs?: string[];
+  numSubsongs?: number;
 };
 
 type PlaySourceOptions = { resetHistory?: boolean; confirmToast?: boolean };
@@ -142,6 +144,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   );
   const trackId = playingSource.type === "modarchive" ? playingSource.id : null;
   const [metaData, setMetaData] = React.useState<MetaData>({});
+  const [selectedSubsong, setSelectedSubsong] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [title, setTitle] = React.useState("Loading...");
   const [progress, setProgress] = React.useState(0);
@@ -350,7 +353,15 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     jsPlayer.setVol(volume / 100);
     jsPlayer.onInitialized(() => setPlayerReady(true));
     jsPlayer.onMetadata((meta) => {
-      setMetaData(meta);
+      setMetaData({
+        artist: meta.artist,
+        title: meta.title,
+        date: meta.date,
+        type: meta.type,
+        message: meta.message,
+        songs: meta.songs,
+        numSubsongs: meta.song?.numSubsongs,
+      });
       // TFMX modules frequently have empty internal titles (libtfmx's
       // tfx_get_name returns "" for mdat.*/smpl.* rips). Fall back to
       // the pair's base name so the catalog row label also appears in
@@ -485,6 +496,12 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     }
   };
 
+  const handleSubsongChange = (idx: number) => {
+    if (!player) return;
+    setSelectedSubsong(idx);
+    player.selectSubsong(idx);
+  };
+
   const playPrevious = () => {
     const bucket = history[playingSource.type] || { items: [], current: -1 };
     if (bucket.current > 0) {
@@ -533,6 +550,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     setLoading(true);
     setIsPlay(false);
     setTitle("Loading...");
+    setSelectedSubsong(0);
     player.pause();
     setPlayingSource(source);
     if (resetHistory) {
@@ -805,6 +823,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
               copyEmbed={copyEmbed}
               updateFavoriteModsRuntime={updateFavoriteModsRuntime}
               favoriteModsRuntime={favoriteModsRuntime}
+              selectedSubsong={selectedSubsong}
+              onSubsongChange={handleSubsongChange}
             />
           </div>
           <SourceDrawer
@@ -853,6 +873,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
           <PlayerMin
             title={title}
             loading={loading}
+            metaData={metaData}
             trackId={trackId}
             progress={progress}
             max={max}
@@ -864,6 +885,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             setProgress={setProgress}
             changeSize={changeSize}
             downloadTrack={downloadTrack}
+            selectedSubsong={selectedSubsong}
+            onSubsongChange={handleSubsongChange}
           />
         </div>
       )}
