@@ -16,7 +16,8 @@ type ChiptuneMeta = {
   type?: string;
   message?: string;
   dur?: number;
-  song?: unknown;
+  song?: { numSubsongs?: number };
+  songs?: string[];
   totalOrders?: number;
   totalPatterns?: number;
   libopenmptVersion?: string;

@@ -31,6 +31,8 @@ type MetaData = {
   date?: string;
   type?: string;
   message?: string;
+  songs?: string[];
+  numSubsongs?: number;
 };
 
 type PlayerBigProps = {
@@ -58,6 +60,8 @@ type PlayerBigProps = {
   copyEmbed: () => void;
   favoriteModsRuntime: FavoriteTrack[];
   updateFavoriteModsRuntime: (next: FavoriteTrack[]) => void;
+  selectedSubsong: number;
+  onSubsongChange: (idx: number) => void;
 };
 
 function PlayerBig({
@@ -85,6 +89,8 @@ function PlayerBig({
   copyEmbed,
   favoriteModsRuntime,
   updateFavoriteModsRuntime,
+  selectedSubsong,
+  onSubsongChange,
 }: PlayerBigProps) {
   const [dropDownClass, setDropDownClass] = React.useState(dropDownClose);
   const [volumePopoverOpen, setVolumePopoverOpen] = React.useState(false);
@@ -215,6 +221,28 @@ function PlayerBig({
           ) : (
             <LoadingState />
           )}
+          {!loading &&
+          (metaData.numSubsongs ?? 0) > 1 &&
+          metaData.songs &&
+          metaData.songs.length > 0 ? (
+            <div className={styles.subsongRow}>
+              <label htmlFor="subsongPicker" className={styles.subsongLabel}>
+                Subsong:
+              </label>
+              <select
+                id="subsongPicker"
+                className={styles.subsongPicker}
+                value={selectedSubsong}
+                onChange={(e) => onSubsongChange(Number(e.target.value))}
+              >
+                {metaData.songs.map((name, idx) => (
+                  <option key={idx} value={idx}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <Slider
             railStyle={{ backgroundColor: "white", height: 6 }}
             trackStyle={{ backgroundColor: "#bd00ff", height: 6 }}

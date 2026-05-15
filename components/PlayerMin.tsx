@@ -12,9 +12,20 @@ import {
 } from "../icons";
 import type { AudioPlayer } from "../lib/audio-player";
 
+type MetaData = {
+  artist?: string;
+  title?: string;
+  date?: string;
+  type?: string;
+  message?: string;
+  songs?: string[];
+  numSubsongs?: number;
+};
+
 type PlayerMinProps = {
   title: string;
   loading: boolean;
+  metaData: MetaData;
   trackId: number | null;
   progress: number;
   max: number;
@@ -26,11 +37,14 @@ type PlayerMinProps = {
   setProgress: (n: number) => void;
   changeSize: () => void;
   downloadTrack: () => void | Promise<void>;
+  selectedSubsong: number;
+  onSubsongChange: (idx: number) => void;
 };
 
 function PlayerMin({
   title,
   loading,
+  metaData,
   trackId,
   progress,
   max,
@@ -42,6 +56,8 @@ function PlayerMin({
   setProgress,
   changeSize,
   downloadTrack,
+  selectedSubsong,
+  onSubsongChange,
 }: PlayerMinProps) {
   const [volumePopoverOpen, setVolumePopoverOpen] = React.useState(false);
   const volumePopoverRef = React.useRef<HTMLDivElement | null>(null);
@@ -89,6 +105,31 @@ function PlayerMin({
           <ul className={styles.metadata}>
             <li>Track Id: #{trackId}</li>
           </ul>
+          {!loading &&
+          (metaData.numSubsongs ?? 0) > 1 &&
+          metaData.songs &&
+          metaData.songs.length > 0 ? (
+            <div className={styles.subsongRow}>
+              <label
+                htmlFor="subsongPickerMin"
+                className={styles.subsongLabel}
+              >
+                Subsong:
+              </label>
+              <select
+                id="subsongPickerMin"
+                className={styles.subsongPicker}
+                value={selectedSubsong}
+                onChange={(e) => onSubsongChange(Number(e.target.value))}
+              >
+                {metaData.songs.map((name, idx) => (
+                  <option key={idx} value={idx}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
         </div>
         <div className={styles.headerRight}>
           <DownloadButton
