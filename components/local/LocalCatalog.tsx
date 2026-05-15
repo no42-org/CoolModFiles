@@ -8,6 +8,7 @@ import {
   type TfmxLocalSource,
 } from "../sources";
 import { detectTfmxPairs } from "./tfmx-pairs";
+import { showToast } from "../../utils";
 
 type LocalCatalogProps = {
   pickedFiles: File[];
@@ -29,12 +30,30 @@ function LocalCatalog({
 
   const addFiles = (incoming: FileList | File[]) => {
     // Pair detection runs FIRST so that TFMX halves are claimed before
-    // isModuleFile gets a chance to drop them. Unpaired TFMX halves
-    // (filename matches the half-pattern but no companion) are silently
-    // discarded per the tfmx-playback spec.
+    // isModuleFile gets a chance to drop them. Per local-files-mode spec:
+    // both halves of a TFMX pair must be in the same drop — unpaired
+    // halves are reported via toast so the user knows to drop the
+    // companion together.
     const all = Array.from(incoming);
-    const { pairs, remainingFiles } = detectTfmxPairs(all);
+    const { pairs, remainingFiles, collisions, unpaired } =
+      detectTfmxPairs(all);
     const modules = remainingFiles.filter((f) => isModuleFile(f.name));
+
+    // Surface collisions: when a folder drop contains two halves with the
+    // same base name from different subdirectories, last-write-wins silently
+    // discarded one. Tell the user which base(s) collapsed.
+    if (collisions.length > 0) {
+      const names = collisions.slice(0, 3).join(", ");
+      const more = collisions.length > 3 ? ` (+${collisions.length - 3} more)` : "";
+      showToast(`Duplicate TFMX pair(s): ${names}${more} — only one kept`);
+    }
+    // Surface unpaired halves so the user knows their drop produced no
+    // catalog row.
+    if (unpaired.length > 0) {
+      const names = unpaired.slice(0, 3).join(", ");
+      const more = unpaired.length > 3 ? ` (+${unpaired.length - 3} more)` : "";
+      showToast(`Unpaired TFMX half: ${names}${more} — drop the matching file together`);
+    }
 
     if (pairs.length === 0 && modules.length === 0) return;
 
