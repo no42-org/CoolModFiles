@@ -107,7 +107,7 @@ async function pickRandomNext(
   }
 }
 
-type MetaData = {
+export type MetaData = {
   artist?: string;
   title?: string;
   date?: string;
@@ -359,7 +359,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         date: meta.date,
         type: meta.type,
         message: meta.message,
-        songs: meta.songs,
+        songs: Array.isArray(meta.songs) ? meta.songs : undefined,
         numSubsongs: meta.song?.numSubsongs,
       });
       // TFMX modules frequently have empty internal titles (libtfmx's
@@ -551,6 +551,11 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     setIsPlay(false);
     setTitle("Loading...");
     setSelectedSubsong(0);
+    // Clear songs/numSubsongs so the picker hides until the new track's
+    // onMetadata arrives — setLoading(false) lands in .then(buffer) BEFORE
+    // the worklet posts 'meta' for the new track, so without this the
+    // picker briefly shows the previous track's options.
+    setMetaData((m) => ({ ...m, songs: undefined, numSubsongs: undefined }));
     player.pause();
     setPlayingSource(source);
     if (resetHistory) {

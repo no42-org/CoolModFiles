@@ -11,16 +11,7 @@ import {
   VolumeIcon,
 } from "../icons";
 import type { AudioPlayer } from "../lib/audio-player";
-
-type MetaData = {
-  artist?: string;
-  title?: string;
-  date?: string;
-  type?: string;
-  message?: string;
-  songs?: string[];
-  numSubsongs?: number;
-};
+import type { MetaData } from "./Player";
 
 type PlayerMinProps = {
   title: string;
@@ -109,7 +100,7 @@ function PlayerMin({
           (metaData.numSubsongs ?? 0) > 1 &&
           metaData.songs &&
           metaData.songs.length > 0 ? (
-            <div className={styles.subsongRow}>
+            <div className={styles.subsongRow} aria-live="polite">
               <label
                 htmlFor="subsongPickerMin"
                 className={styles.subsongLabel}
@@ -123,7 +114,7 @@ function PlayerMin({
                 onChange={(e) => onSubsongChange(Number(e.target.value))}
               >
                 {metaData.songs.map((name, idx) => (
-                  <option key={idx} value={idx}>
+                  <option key={idx} value={idx} title={name}>
                     {name}
                   </option>
                 ))}
