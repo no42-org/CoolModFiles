@@ -35,9 +35,9 @@ function SoundPane({
     <div className={`${styles.wrapper} ${inactive ? styles.inactive : ""}`}>
       {inactive ? (
         <p className={styles.note} role="status">
-          Sound settings only affect classic MOD files. Current track is
-          type &quot;{trackType}&quot; — your choices will apply on the
-          next MOD track.
+          Sound settings only affect classic MOD files. These controls
+          are disabled because the current track is type &quot;
+          {trackType}&quot;.
         </p>
       ) : null}
 
