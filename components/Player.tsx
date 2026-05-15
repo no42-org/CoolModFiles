@@ -97,6 +97,13 @@ async function pickRandomNext(
     case "tfmx-local":
       if (!pickedTfmxPairs || pickedTfmxPairs.length === 0) return null;
       return pickedTfmxPairs[getRandomInt(0, pickedTfmxPairs.length - 1)];
+    default: {
+      // Exhaustiveness assertion: adding a new arm to Source without
+      // updating this switch fails the build here.
+      const _exhaustive: never = source;
+      void _exhaustive;
+      return null;
+    }
   }
 }
 
@@ -344,13 +351,20 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     jsPlayer.onInitialized(() => setPlayerReady(true));
     jsPlayer.onMetadata((meta) => {
       setMetaData(meta);
-      setTitle(meta.title || "");
+      // TFMX modules frequently have empty internal titles (libtfmx's
+      // tfx_get_name returns "" for mdat.*/smpl.* rips). Fall back to
+      // the pair's base name so the catalog row label also appears in
+      // the player title and browser tab.
+      const cur = playingSourceRef.current;
+      const fallback = cur?.type === "tfmx-local" ? cur.base : "";
+      const effectiveTitle = meta.title || fallback;
+      setTitle(effectiveTitle);
       setMax(meta.dur || 0);
       // Always stamp the 🎶 prefix so untitled tracks still surface a
       // "now playing" indicator in the browser tab. The page heading
-      // keeps its own [No Title] fallback when meta.title is empty.
-      document.title = meta.title
-        ? `🎶 ${meta.title} - CoolModFiles.com 🎶`
+      // keeps its own [No Title] fallback when effectiveTitle is empty.
+      document.title = effectiveTitle
+        ? `🎶 ${effectiveTitle} - CoolModFiles.com 🎶`
         : "🎶 CoolModFiles.com 🎶";
     });
     jsPlayer.onEnded(() => {
@@ -370,6 +384,12 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       playNextRef.current();
     });
     setPlayer(jsPlayer);
+    // React StrictMode and HMR remount this effect; without dispose()
+    // the TFMX AudioWorkletNode stays connected to the prewarmed
+    // AudioContext's master gain, and handler closures accumulate.
+    return () => {
+      jsPlayer.dispose();
+    };
   }, []);
 
   React.useEffect(() => {
@@ -484,8 +504,10 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     // catch BOTH cascade paths (catch→retry on getBuffer failure, AND
     // onError→playNext→playFromSource on worklet error). User clicks are
     // far slower than 5/2s, so a real user won't trip it.
+    // Uses performance.now() (monotonic) rather than Date.now() so NTP
+    // / manual clock adjustments can't spuriously trip or clear it.
     {
-      const now = Date.now();
+      const now = performance.now();
       const burst = errorBurstRef.current;
       if (now - burst.firstAt > 2000) {
         burst.firstAt = now;
@@ -573,12 +595,27 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
           showToast(`▶ Playing`);
         }
       })
-      .catch(() => {
+      .catch(async () => {
         if (myGeneration !== playGenerationRef.current) return;
-        // Burst guard at the entry of playFromSource will break the
-        // chain if these retries pile up; this catch just kicks the
-        // next retry.
-        playFromSource(modArchive(getRandomInt(0, maxId)));
+        // Retry within the same source family first so a broken local /
+        // TFMX file doesn't silently teleport the user onto modarchive.
+        // Only fall back to modarchive when the family is empty (or for
+        // modarchive itself, where pickRandomNext naturally returns
+        // another id). The burst guard above will break the chain if
+        // these retries pile up.
+        showToast(`Failed to play — retrying…`);
+        const next = await pickRandomNext(source, {
+          latestId: maxId,
+          pickedFiles,
+          pickedTfmxPairs,
+        });
+        if (myGeneration !== playGenerationRef.current) return;
+        if (next) {
+          playFromSource(next);
+        } else {
+          showToast(`No more ${source.type} sources — falling back to Mod Archive`);
+          playFromSource(modArchive(getRandomInt(0, maxId)));
+        }
       });
   };
 
