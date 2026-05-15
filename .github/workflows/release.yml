@@ -34,6 +34,24 @@ jobs:
           node-version: 20
           cache: npm
 
+      # Fail fast if the tag and package.json version disagree. Without
+      # this guard a release could ship with a stale package.json (and a
+      # stale npm "name@version" identifier in any tooling that reads it)
+      # while the git tag, container tags, and APP_VERSION env all carry
+      # the new number — silent drift that's only noticeable downstream.
+      # See RELEASING.md for the human-side procedure.
+      - name: Verify package.json version matches tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag_version="${REF_NAME#v}"
+          pkg_version=$(node -p "require('./package.json').version")
+          if [ "${tag_version}" != "${pkg_version}" ]; then
+            echo "::error::Tag ${REF_NAME} (=> ${tag_version}) does not match package.json version ${pkg_version}. Bump package.json before tagging — see RELEASING.md." >&2
+            exit 1
+          fi
+
       - run: make verify
 
       - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a  # v4.0.0
