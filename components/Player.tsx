@@ -281,14 +281,26 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     }
     if (volumeMuteKey) toggleMute();
     if (amigaKey) {
-      // Cycle a1200 -> a500 -> off -> a1200. Toast confirms each press.
-      const order: AmigaModel[] = ["a1200", "a500", "off"];
-      const idx = order.indexOf(amigaModel);
-      const next = order[(idx + 1) % order.length];
-      setAmigaModel(next);
-      const label =
-        next === "off" ? "Off" : next === "a500" ? "A500" : "A1200";
-      showToast(`Amiga: ${label}`);
+      // Mirror the SoundPane's MOD-vs-non-MOD gate: Amiga emulation is a
+      // libopenmpt ctl forwarder that no-ops on TFMX. Without this gate
+      // the `m` shortcut would still cycle the model + toast + write
+      // localStorage while the SoundPane shows itself as disabled — UI
+      // and behaviour disagreeing. Pre-track (`type` not yet set) stays
+      // interactive so users can pre-configure their default.
+      const nonModActive =
+        !!metaData.type && metaData.type.toLowerCase() !== "mod";
+      if (nonModActive) {
+        showToast("Amiga emulation only affects MOD tracks");
+      } else {
+        // Cycle a1200 -> a500 -> off -> a1200. Toast confirms each press.
+        const order: AmigaModel[] = ["a1200", "a500", "off"];
+        const idx = order.indexOf(amigaModel);
+        const next = order[(idx + 1) % order.length];
+        setAmigaModel(next);
+        const label =
+          next === "off" ? "Off" : next === "a500" ? "A500" : "A1200";
+        showToast(`Amiga: ${label}`);
+      }
     }
   }, [
     spaceKey,
@@ -559,11 +571,18 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     setIsPlay(false);
     setTitle("Loading...");
     setSelectedSubsong(0);
-    // Clear songs/numSubsongs so the picker hides until the new track's
-    // onMetadata arrives — setLoading(false) lands in .then(buffer) BEFORE
-    // the worklet posts 'meta' for the new track, so without this the
-    // picker briefly shows the previous track's options.
-    setMetaData((m) => ({ ...m, songs: undefined, numSubsongs: undefined }));
+    // Clear songs/numSubsongs/type so the picker hides AND the Sound
+    // pane's MOD-vs-non-MOD gating reads the right engine until the new
+    // track's onMetadata arrives — setLoading(false) lands in
+    // .then(buffer) BEFORE the worklet posts 'meta' for the new track,
+    // so without these the previous track's options + engine banner
+    // briefly leak into the new track's loading window.
+    setMetaData((m) => ({
+      ...m,
+      type: undefined,
+      songs: undefined,
+      numSubsongs: undefined,
+    }));
     player.pause();
     setPlayingSource(source);
     if (resetHistory) {
