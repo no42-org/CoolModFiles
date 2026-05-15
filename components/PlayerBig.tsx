@@ -21,19 +21,10 @@ import LoadingState from "./LoadingState";
 import { showToast } from "../utils";
 import type { FavoriteTrack } from "./LikedMod";
 import type { AudioPlayer } from "../lib/audio-player";
+import type { MetaData } from "./Player";
 
 const dropDownOpen = [styles.dropdownContent, styles.dropdownOpen].join(" ");
 const dropDownClose = styles.dropdownContent;
-
-type MetaData = {
-  artist?: string;
-  title?: string;
-  date?: string;
-  type?: string;
-  message?: string;
-  songs?: string[];
-  numSubsongs?: number;
-};
 
 type PlayerBigProps = {
   title: string;
@@ -225,7 +216,7 @@ function PlayerBig({
           (metaData.numSubsongs ?? 0) > 1 &&
           metaData.songs &&
           metaData.songs.length > 0 ? (
-            <div className={styles.subsongRow}>
+            <div className={styles.subsongRow} aria-live="polite">
               <label htmlFor="subsongPicker" className={styles.subsongLabel}>
                 Subsong:
               </label>
@@ -236,7 +227,7 @@ function PlayerBig({
                 onChange={(e) => onSubsongChange(Number(e.target.value))}
               >
                 {metaData.songs.map((name, idx) => (
-                  <option key={idx} value={idx}>
+                  <option key={idx} value={idx} title={name}>
                     {name}
                   </option>
                 ))}
