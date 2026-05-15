@@ -9,6 +9,31 @@
   color: white;
 }
 
+// Applied when the active engine ignores everything in this panel
+// (currently any non-MOD track, e.g. TFMX). Inputs are disabled at the
+// HTML level; this just dims the visual to match.
+.inactive {
+  .sectionHeading,
+  .stereoCaption,
+  .stereoPercent,
+  .optionTitle,
+  .optionSub {
+    opacity: 0.45;
+  }
+}
+
+.optionDisabled {
+  cursor: not-allowed;
+
+  &:hover {
+    background-color: transparent;
+  }
+
+  input[type="radio"] {
+    cursor: not-allowed;
+  }
+}
+
 .sectionHeading {
   font-size: 0.7rem;
   margin: 4px 0 10px 0;
