@@ -41,4 +41,4 @@ The public C API lives in [`src/tfmxaudiodecoder.h`](./src/tfmxaudiodecoder.h). 
 | `tfmxdec_mixer_init` | configure mixer (sample rate, bit depth, channels, panning) |
 | `tfmxdec_buffer_fill` | render N bytes of PCM into a destination buffer |
 | `tfmxdec_song_end` | end-of-song flag |
-| `tfmxdec_format_id` / `tfmxdec_format_name` | metadata strings |
+| `tfmxdec_format_name` | metadata strings |

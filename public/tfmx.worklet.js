@@ -247,11 +247,14 @@ class TFX extends AudioWorkletProcessor {
 		try { M.FS.mkdir(vdir) } catch { /* exists from a previous play */ }
 		const vTfx = `${vdir}/${base}.tfx`
 		const vSam = `${vdir}/${base}.sam`
+		// Record the paths BEFORE writing so a partial-success failure
+		// (vTfx written, vSam throws) is still cleaned up by the next
+		// _stop / _unlinkVirtual.
+		this.lastTfx = vTfx
+		this.lastSam = vSam
 		try {
 			M.FS.writeFile(vTfx, tfxBytes)
 			M.FS.writeFile(vSam, samBytes)
-			this.lastTfx = vTfx
-			this.lastSam = vSam
 		} catch (e) {
 			// Worklet-side console.* is silently dropped by some browsers
 			// (Safari/WebKit in particular). Surface diagnostics via the
@@ -322,6 +325,10 @@ class TFX extends AudioWorkletProcessor {
 		// Unlink the virtual MEMFS files written by the most recent _play
 		// so a session of 7+ TFMX pairs doesn't leak 14+ files at ~100KB each.
 		this._unlinkVirtual()
+		// Drop any play that was queued waiting for M to initialise — if
+		// the user stops before the WASM module finishes loading, we MUST
+		// NOT auto-fire the queued play once the .then handler drains.
+		this.pendingPlay = null
 		this.songs = 0
 		this.songIndex = 0
 		this.durationMs = 0
