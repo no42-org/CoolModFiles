@@ -11,27 +11,23 @@
 
 // Applied when the active engine ignores everything in this panel
 // (currently any non-MOD track, e.g. TFMX). Inputs are disabled at the
-// HTML level; this just dims the visual to match.
+// HTML level; this dims the visual to match. Structural selector fades
+// every direct child except the .note banner — future sibling sections
+// added to the wrapper get faded automatically without per-section CSS
+// work, and the banner stays full-opacity so the explanation remains
+// readable.
 .inactive {
-  .sectionHeading,
-  .stereoCaption,
-  .stereoPercent,
-  .optionTitle,
-  .optionSub {
+  > :not(.note) {
     opacity: 0.45;
   }
 }
 
 .optionDisabled {
-  cursor: not-allowed;
-
-  &:hover {
-    background-color: transparent;
-  }
-
-  input[type="radio"] {
-    cursor: not-allowed;
-  }
+  // pointer-events: none makes the label entirely inert, which is the
+  // right outcome since the inner radio is already disabled. Side
+  // benefit: no need to override .option's :hover background or
+  // cursor, since pointer events don't reach the element at all.
+  pointer-events: none;
 }
 
 .sectionHeading {

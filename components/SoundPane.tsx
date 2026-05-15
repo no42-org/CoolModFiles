@@ -26,20 +26,15 @@ function SoundPane({
   setStereoSeparation,
 }: SoundPaneProps) {
   const isMod = (trackType || "").toLowerCase() === "mod";
-  // Both controls (Amiga emulation, stereo separation) are libopenmpt
-  // ctl-table forwarders. libtfmx ignores them today (see audio-player
-  // facade's setStereoSeparation / setCtl). When a non-MOD track is
-  // playing we grey the whole panel and surface a single explanation,
-  // rather than letting users twiddle settings that have no effect.
+  // Both controls are MOD-only ctl forwarders. Falsy trackType means
+  // "no track loaded yet" — keep controls live so the user can
+  // pre-configure their default before the first track lands.
   const inactive = !!trackType && !isMod;
 
   return (
-    <div
-      className={`${styles.wrapper} ${inactive ? styles.inactive : ""}`}
-      aria-disabled={inactive || undefined}
-    >
+    <div className={`${styles.wrapper} ${inactive ? styles.inactive : ""}`}>
       {inactive ? (
-        <p className={styles.note}>
+        <p className={styles.note} role="status">
           Sound settings only affect classic MOD files. Current track is
           type &quot;{trackType}&quot; — your choices will apply on the
           next MOD track.
@@ -86,6 +81,11 @@ function SoundPane({
               step={1}
               value={stereoSeparation}
               onChange={(val) => {
+                // Defence in depth: rc-slider's `disabled` prop blocks
+                // pointer drags but a handle that was already focused
+                // before disable kicked in (e.g. mid-track-switch) can
+                // still emit onChange via keyboard arrows.
+                if (inactive) return;
                 if (typeof val !== "number") return;
                 setStereoSeparation(val);
               }}
