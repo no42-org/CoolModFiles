@@ -432,13 +432,26 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         playNextRef.current();
       }
     });
-    // The worklet posts 'err' when libopenmpt can't parse the bytes we
-    // handed it (truncated file, HTML error body, unsupported format).
-    // Without this handler the UI would freeze at "Loading...". Retry
-    // by walking forward in history, same path as natural end-of-track.
+    // Engine error during play (truncated file, undersized TFMX, HTML
+    // error body, unsupported format). Without this handler the UI
+    // would freeze at "Loading...".
+    //
+    // Mod Archive's "play random" flow expects silent skip on bad random
+    // ids — auto-advance there. For library / local / TFMX sources the
+    // user explicitly picked the track; silently swapping in a random
+    // other source confused users (the undersized Apidya-Load case
+    // teleported them to Hexuma). For those sources, surface the error
+    // and stop.
     jsPlayer.onError(() => {
       setIsPlay(false);
-      playNextRef.current();
+      const cur = playingSourceRef.current;
+      if (cur?.type === "modarchive") {
+        playNextRef.current();
+        return;
+      }
+      setLoading(false);
+      setTitle("Couldn't play this track");
+      showToast("Couldn't play that track — pick another");
     });
     setPlayer(jsPlayer);
     // React StrictMode and HMR remount this effect; without dispose()
