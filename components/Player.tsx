@@ -744,18 +744,86 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   };
 
   const downloadTrack = async () => {
-    try {
-      const res = await fetch(
-        `https://api.modarchive.org/downloads.php?moduleid=${trackId}`
-      );
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
+    // Dispatch by source.type: modarchive fetches from upstream; library
+    // re-downloads from the server; local/tfmx-local copy bytes already
+    // in memory; tfmx-* arms emit two downloads (TFMX is a two-file
+    // format). Without this dispatch, every non-modarchive source would
+    // hit modarchive with a null trackId and save whatever came back as
+    // `<title>.mod` — the bug Indigo reported when downloading TFMX.
+    const triggerDownload = (url: string, name: string) => {
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `${metaData.title}.mod`);
+      link.setAttribute("download", name);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    };
+    const basename = (p: string) => p.split("/").pop() || p;
+    try {
+      const source = playingSource;
+      switch (source.type) {
+        case "modarchive": {
+          const res = await fetch(
+            `https://api.modarchive.org/downloads.php?moduleid=${source.id}`
+          );
+          const blob = await res.blob();
+          triggerDownload(
+            window.URL.createObjectURL(blob),
+            `${metaData.title || source.id}.mod`
+          );
+          break;
+        }
+        case "library": {
+          const res = await fetch(
+            `/api/library/file?path=${encodeURIComponent(source.path)}`
+          );
+          if (!res.ok) throw new Error(`library fetch failed: ${res.status}`);
+          const blob = await res.blob();
+          triggerDownload(window.URL.createObjectURL(blob), basename(source.path));
+          break;
+        }
+        case "local": {
+          triggerDownload(
+            window.URL.createObjectURL(source.file),
+            source.file.name
+          );
+          break;
+        }
+        case "tfmx-local": {
+          triggerDownload(
+            window.URL.createObjectURL(source.tfx),
+            source.tfx.name
+          );
+          triggerDownload(
+            window.URL.createObjectURL(source.sam),
+            source.sam.name
+          );
+          break;
+        }
+        case "tfmx-library": {
+          const [tfxRes, samRes] = await Promise.all([
+            fetch(`/api/library/file?path=${encodeURIComponent(source.tfxPath)}`),
+            fetch(`/api/library/file?path=${encodeURIComponent(source.samPath)}`),
+          ]);
+          if (!tfxRes.ok)
+            throw new Error(`library tfx fetch failed: ${tfxRes.status}`);
+          if (!samRes.ok)
+            throw new Error(`library sam fetch failed: ${samRes.status}`);
+          const [tfxBlob, samBlob] = await Promise.all([
+            tfxRes.blob(),
+            samRes.blob(),
+          ]);
+          triggerDownload(
+            window.URL.createObjectURL(tfxBlob),
+            basename(source.tfxPath)
+          );
+          triggerDownload(
+            window.URL.createObjectURL(samBlob),
+            basename(source.samPath)
+          );
+          break;
+        }
+      }
     } catch (error) {
       console.log(error);
     }
