@@ -25,7 +25,9 @@ import {
   getEmbedHtml,
   type Source,
   type SourceHistoryBuckets,
+  type LibrarySource,
   type TfmxLocalSource,
+  type TfmxLibrarySource,
   type TfmxBuffers,
 } from "./sources";
 import type { FavoriteTrack } from "./LikedMod";
@@ -75,6 +77,77 @@ type PickRandomNextCtx = {
   pickedTfmxPairs: TfmxLocalSource[];
 };
 
+type ListingPairEntry = { base: string; tfx: string; sam: string };
+type LibraryListing = {
+  dirs?: string[];
+  files?: string[];
+  pairs?: ListingPairEntry[];
+};
+
+// For library/tfmx-library sources: walk the parent directory's visual
+// listing (pairs then files, matching LibraryCatalog's render order)
+// and return the next entry. Wraps to the first entry at end of folder.
+// Returns null if the folder lookup fails or the current source isn't
+// found — caller falls back to its random endpoint.
+//
+// Without this, the auto-advance for a library source went to a random
+// pair anywhere in LIBRARY_ROOT: playing Apidya-Ongame_1 ended into
+// some unrelated TFMX file instead of Apidya-Ongame_2.
+async function pickNextInFolder(
+  source: LibrarySource | TfmxLibrarySource
+): Promise<Source | null> {
+  const currentPath = source.type === "library" ? source.path : source.tfxPath;
+  const lastSlash = currentPath.lastIndexOf("/");
+  const parentDir = lastSlash >= 0 ? currentPath.slice(0, lastSlash) : "";
+  const currentBasename = currentPath.slice(lastSlash + 1);
+
+  let data: LibraryListing;
+  try {
+    const r = await fetch(`/api/library?path=${encodeURIComponent(parentDir)}`);
+    if (!r.ok) return null;
+    data = await r.json();
+  } catch {
+    return null;
+  }
+
+  type Entry =
+    | { kind: "pair"; pair: ListingPairEntry }
+    | { kind: "file"; name: string };
+  const entries: Entry[] = [
+    ...(data.pairs ?? []).map((p): Entry => ({ kind: "pair", pair: p })),
+    ...(data.files ?? []).map((f): Entry => ({ kind: "file", name: f })),
+  ];
+  if (entries.length === 0) return null;
+
+  let currentIdx = -1;
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    if (source.type === "tfmx-library" && e.kind === "pair") {
+      if (e.pair.tfx === currentBasename || e.pair.sam === currentBasename) {
+        currentIdx = i;
+        break;
+      }
+    } else if (source.type === "library" && e.kind === "file") {
+      if (e.name === currentBasename) {
+        currentIdx = i;
+        break;
+      }
+    }
+  }
+  if (currentIdx === -1) return null;
+
+  const nextEntry = entries[(currentIdx + 1) % entries.length];
+  const prefix = parentDir ? `${parentDir}/` : "";
+  if (nextEntry.kind === "pair") {
+    return tfmxLibrary(
+      prefix + nextEntry.pair.tfx,
+      prefix + nextEntry.pair.sam,
+      nextEntry.pair.base
+    );
+  }
+  return library(prefix + nextEntry.name);
+}
+
 async function pickRandomNext(
   source: Source,
   { latestId, pickedFiles, pickedTfmxPairs }: PickRandomNextCtx
@@ -86,6 +159,13 @@ async function pickRandomNext(
       if (!pickedFiles || pickedFiles.length === 0) return null;
       return local(pickedFiles[getRandomInt(0, pickedFiles.length - 1)]);
     case "library": {
+      // First try sequential walk of the current folder (matches user
+      // expectation: "after the last track in this folder, play the
+      // first one — not a random track from somewhere else").
+      const sibling = await pickNextInFolder(source);
+      if (sibling) return sibling;
+      // Fall back to random across LIBRARY_ROOT (e.g. listing fetch
+      // failed or current source disappeared from disk).
       try {
         const r = await fetch("/api/library/random");
         if (!r.ok) return null;
@@ -99,6 +179,11 @@ async function pickRandomNext(
       if (!pickedTfmxPairs || pickedTfmxPairs.length === 0) return null;
       return pickedTfmxPairs[getRandomInt(0, pickedTfmxPairs.length - 1)];
     case "tfmx-library": {
+      // Same folder-sequential-walk policy as `library` above. The
+      // fallback to /api/library/tfmx-random only fires when the folder
+      // lookup fails (deleted, listing 404, etc).
+      const sibling = await pickNextInFolder(source);
+      if (sibling) return sibling;
       try {
         const r = await fetch("/api/library/tfmx-random");
         if (!r.ok) return null;
@@ -107,9 +192,6 @@ async function pickRandomNext(
           samPath?: unknown;
           base?: unknown;
         };
-        // Use typeof checks consistently for all three fields — a
-        // malformed body returning {base: null} or {base: 0} must not
-        // propagate into tfmxLibrary(...) as a non-string.
         if (
           typeof data.tfxPath !== "string" ||
           typeof data.samPath !== "string" ||
