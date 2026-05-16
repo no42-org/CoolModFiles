@@ -201,6 +201,14 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const playFromSourceRef = React.useRef<
     (s: Source, o?: PlaySourceOptions) => void
   >(() => {});
+  // Subsong walk: when a multi-subsong track ends one subsong, advance
+  // to the next within the same track instead of jumping to a different
+  // source. Apidya's Ongame tracks have 8 subsongs each; without this
+  // the end of subsong 4 surprised the user by playing a random other
+  // track. Refs because the onEnded handler is registered once at init
+  // and would otherwise close over stale state.
+  const numSubsongsRef = React.useRef<number>(0);
+  const selectedSubsongRef = React.useRef<number>(0);
 
   // Circuit breaker for cascading playback errors. Without this, a single
   // un-playable source (e.g. a Safari File whose blob has been revoked,
@@ -428,9 +436,26 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       setIsPlay(false);
       if (repeatRef.current) {
         playFromSourceRef.current(playingSourceRef.current);
-      } else {
-        playNextRef.current();
+        return;
       }
+      // Multi-subsong walk: end-of-subsong N (N < total) advances to
+      // subsong N+1 in the same track, not to a different source. Only
+      // the LAST subsong's end triggers playNext. Works for any engine
+      // that exposes numSubsongs (libopenmpt multi-song MODs + TFMX).
+      const total = numSubsongsRef.current;
+      const cur = selectedSubsongRef.current;
+      if (total > 1 && cur + 1 < total) {
+        const nextIdx = cur + 1;
+        selectedSubsongRef.current = nextIdx;
+        setSelectedSubsong(nextIdx);
+        jsPlayer.selectSubsong(nextIdx);
+        // selectSubsong resets the worklet's endFired and starts
+        // decoding subsong N+1 immediately; flip isPlay back so the UI
+        // doesn't show a paused state while audio is rendering.
+        setIsPlay(true);
+        return;
+      }
+      playNextRef.current();
     });
     // Engine error during play (truncated file, undersized TFMX, HTML
     // error body, unsupported format). Without this handler the UI
@@ -918,6 +943,12 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   React.useEffect(() => {
     playFromSourceRef.current = playFromSource;
   });
+  React.useEffect(() => {
+    numSubsongsRef.current = metaData.numSubsongs ?? 0;
+  }, [metaData.numSubsongs]);
+  React.useEffect(() => {
+    selectedSubsongRef.current = selectedSubsong;
+  }, [selectedSubsong]);
 
   return (
     <div>
