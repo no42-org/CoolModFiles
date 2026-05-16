@@ -17,6 +17,7 @@ import {
   library,
   local,
   tfmxLocal,
+  tfmxLibrary,
   getBuffer,
   getPermalink,
   sourceKey,
@@ -97,6 +98,30 @@ async function pickRandomNext(
     case "tfmx-local":
       if (!pickedTfmxPairs || pickedTfmxPairs.length === 0) return null;
       return pickedTfmxPairs[getRandomInt(0, pickedTfmxPairs.length - 1)];
+    case "tfmx-library": {
+      try {
+        const r = await fetch("/api/library/tfmx-random");
+        if (!r.ok) return null;
+        const data = (await r.json()) as {
+          tfxPath?: unknown;
+          samPath?: unknown;
+          base?: unknown;
+        };
+        // Use typeof checks consistently for all three fields — a
+        // malformed body returning {base: null} or {base: 0} must not
+        // propagate into tfmxLibrary(...) as a non-string.
+        if (
+          typeof data.tfxPath !== "string" ||
+          typeof data.samPath !== "string" ||
+          typeof data.base !== "string"
+        )
+          return null;
+        return tfmxLibrary(data.tfxPath, data.samPath, data.base);
+      } catch (e) {
+        console.warn("[tfmx-random] fetch failed", e);
+        return null;
+      }
+    }
     default: {
       // Exhaustiveness assertion: adding a new arm to Source without
       // updating this switch fails the build here.
@@ -159,6 +184,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     library: { items: [], current: -1 },
     local: { items: [], current: -1 },
     "tfmx-local": { items: [], current: -1 },
+    "tfmx-library": { items: [], current: -1 },
   });
   const playGenerationRef = React.useRef(0);
   const [repeat, setRepeat] = React.useState(false);
@@ -379,8 +405,16 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       // the pair's base name so the catalog row label also appears in
       // the player title and browser tab.
       const cur = playingSourceRef.current;
-      const fallback = cur?.type === "tfmx-local" ? cur.base : "";
-      const effectiveTitle = meta.title || fallback;
+      const isTfmx =
+        cur?.type === "tfmx-local" || cur?.type === "tfmx-library";
+      const fallback = isTfmx ? cur.base : "";
+      // Final defense for the "engine reports no title AND pair has empty
+      // base" case (e.g. random TFMX-library pair whose disk base parses
+      // to ""). Without this both the in-app title and the browser tab go
+      // blank for TFMX. Non-TFMX sources keep their old empty-allowed
+      // behaviour (the document.title fallback covers them).
+      const effectiveTitle =
+        meta.title || fallback || (isTfmx ? "Untitled (TFMX)" : "");
       setTitle(effectiveTitle);
       setMax(meta.dur || 0);
       // Always stamp the 🎶 prefix so untitled tracks still surface a
@@ -603,7 +637,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         errorBurstRef.current.count = 0;
         errorBurstRef.current.firstAt = 0;
         setLoading(false);
-        if (source.type === "tfmx-local") {
+        if (source.type === "tfmx-local" || source.type === "tfmx-library") {
           const b = buffer as TfmxBuffers;
           player.play({ tfx: b.tfx, sam: b.sam, base: source.base });
         } else {

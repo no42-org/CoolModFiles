@@ -1,17 +1,29 @@
 import React from "react";
 import styles from "./LibraryCatalog.module.scss";
-import { library, type LibrarySource } from "../sources";
+import {
+  library,
+  tfmxLibrary,
+  type LibrarySource,
+  type TfmxLibrarySource,
+} from "../sources";
+
+type PairEntry = { base: string; tfx: string; sam: string };
 
 type Listing = {
   dirs: string[];
   files: string[];
+  pairs?: PairEntry[];
   truncated?: boolean;
 };
+
+type SearchResult =
+  | { kind: "mod"; path: string }
+  | { kind: "tfmx"; tfxPath: string; samPath: string; base: string };
 
 type LibraryCatalogProps = {
   currentPath: string;
   setCurrentPath: React.Dispatch<React.SetStateAction<string>>;
-  onPlay: (source: LibrarySource) => void;
+  onPlay: (source: LibrarySource | TfmxLibrarySource) => void;
 };
 
 function joinPath(parts: string[]): string {
@@ -26,9 +38,9 @@ function LibraryCatalog({
   const [listing, setListing] = React.useState<Listing | null>(null);
   const [error, setError] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [searchResults, setSearchResults] = React.useState<string[] | null>(
-    null
-  );
+  const [searchResults, setSearchResults] = React.useState<
+    SearchResult[] | null
+  >(null);
   const searchTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Listing fetch — fires when currentPath changes (and search is empty)
@@ -55,7 +67,9 @@ function LibraryCatalog({
     searchTimer.current = setTimeout(() => {
       fetch(`/api/library/search?q=${encodeURIComponent(searchQuery)}`)
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-        .then((data: { results?: string[] }) => setSearchResults(data.results || []))
+        .then((data: { results?: SearchResult[] }) =>
+          setSearchResults(data.results || [])
+        )
         .catch(() => setSearchResults([]));
     }, 250);
     return () => {
@@ -84,21 +98,41 @@ function LibraryCatalog({
           <div className={styles.empty}>No matches.</div>
         ) : (
           <ul className={styles.list}>
-            {searchResults.map((p) => (
-              <li
-                key={p}
-                className={`${styles.row} ${styles.file}`}
-                onClick={() => onPlay(library(p))}
-                title={p}
-              >
-                {p}
-              </li>
-            ))}
+            {searchResults.map((r) =>
+              r.kind === "mod" ? (
+                <li
+                  key={`mod:${r.path}`}
+                  className={`${styles.row} ${styles.file}`}
+                  onClick={() => onPlay(library(r.path))}
+                  title={r.path}
+                >
+                  {r.path}
+                </li>
+              ) : (
+                <li
+                  key={`tfmx:${r.tfxPath}`}
+                  className={`${styles.row} ${styles.file}`}
+                  onClick={() =>
+                    onPlay(tfmxLibrary(r.tfxPath, r.samPath, r.base))
+                  }
+                  title={`${r.tfxPath} + ${r.samPath}`}
+                >
+                  {r.base} (TFMX)
+                </li>
+              )
+            )}
           </ul>
         )}
       </div>
     );
   }
+
+  const pairs = listing?.pairs ?? [];
+  const isEmpty =
+    !!listing &&
+    listing.dirs.length === 0 &&
+    pairs.length === 0 &&
+    listing.files.length === 0;
 
   return (
     <div className={styles.wrapper}>
@@ -129,7 +163,7 @@ function LibraryCatalog({
         <div className={styles.error}>Failed to load (HTTP {error}).</div>
       ) : !listing ? (
         <div className={styles.empty}>Loading...</div>
-      ) : listing.dirs.length === 0 && listing.files.length === 0 ? (
+      ) : isEmpty ? (
         <div className={styles.empty}>Empty.</div>
       ) : (
         <ul className={styles.list}>
@@ -141,6 +175,24 @@ function LibraryCatalog({
               title={d}
             >
               {d}
+            </li>
+          ))}
+          {pairs.map((p) => (
+            <li
+              key={`p:${p.base}`}
+              className={`${styles.row} ${styles.file}`}
+              onClick={() =>
+                onPlay(
+                  tfmxLibrary(
+                    joinPath([...segments, p.tfx]),
+                    joinPath([...segments, p.sam]),
+                    p.base
+                  )
+                )
+              }
+              title={`${p.tfx} + ${p.sam}`}
+            >
+              {p.base} (TFMX)
             </li>
           ))}
           {listing.files.map((f) => (

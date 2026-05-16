@@ -22,7 +22,7 @@ The programmer friends' idea, unfortunately, was beaten by [modarchive.org](http
 CoolModFiles plays two families of Amiga music:
 
 - **Module files** (`.mod`, `.xm`, `.it`, `.s3m`, `.mptm`, `.stm`, `.mtm`, `.669`, `.med`, `.okt`, `.ult`) through [libopenmpt](https://lib.openmpt.org/libopenmpt/) — available from all sources (Mod Archive, Library, Local drop).
-- **TFMX** (Chris Hülsbeck / Jochen Hippel two-file Amiga game-music format, e.g. Apidya, Turrican) through [libtfmxaudiodecoder](https://github.com/mschwendt/libtfmxaudiodecoder) — **Local drop only**. Drop both halves of each pair (`*.tfx + *.sam`, `mdat.* + smpl.*`, or `*.mdat + *.smpl`) and the catalog surfaces each pair as a single row.
+- **TFMX** (Chris Hülsbeck / Jochen Hippel two-file Amiga game-music format, e.g. Apidya, Turrican) through [libtfmxaudiodecoder](https://github.com/mschwendt/libtfmxaudiodecoder) — available from **Library** and **Local drop**. Pairs are recognised across three naming conventions: `*.tfx + *.sam`, `mdat.* + smpl.*`, or `*.mdat + *.smpl`. Both halves must be present together; the catalog (Library or Local) surfaces each pair as a single row.
 
 ## Keyboard shortcuts
 
@@ -58,10 +58,12 @@ See [`.env.example`](.env.example) for the runtime environment variables.
 
 ### Library mode (optional)
 
-The player can browse and play MOD files from a directory on the host machine
-in addition to ModArchive's random feed. Set `LIBRARY_ROOT` to an absolute path
-inside the container; the Library tab appears in the source drawer when this
-is configured.
+The player can browse and play MOD files **and TFMX pairs** from a directory on
+the host machine in addition to ModArchive's random feed. Set `LIBRARY_ROOT` to
+an absolute path inside the container; the Library tab appears in the source
+drawer when this is configured. TFMX pairs are recognised across the same three
+naming conventions as Local drop (`*.tfx + *.sam`, `mdat.* + smpl.*`,
+`*.mdat + *.smpl`); both halves must live in the same directory.
 
 For local dev, drop a `mods/` folder in the repo root — `make run` will mount
 it read-only into the container at `/library` and set `LIBRARY_ROOT=/library`

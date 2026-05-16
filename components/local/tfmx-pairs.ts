@@ -20,8 +20,7 @@
  */
 
 import { tfmxLocal, type TfmxLocalSource } from "../sources";
-
-type HalfKind = "tfx" | "sam";
+import { parseHalfName, type HalfKind } from "../../lib/tfmx/pairs";
 
 type ParsedHalf = {
   kind: HalfKind;
@@ -30,34 +29,8 @@ type ParsedHalf = {
 };
 
 function parseHalf(file: File): ParsedHalf | null {
-  const name = file.name;
-  const lower = name.toLowerCase();
-
-  // suffix-Pro
-  if (lower.endsWith(".tfx")) {
-    return { kind: "tfx", base: name.slice(0, -4), file };
-  }
-  if (lower.endsWith(".sam")) {
-    return { kind: "sam", base: name.slice(0, -4), file };
-  }
-
-  // suffix-mdat
-  if (lower.endsWith(".mdat")) {
-    return { kind: "tfx", base: name.slice(0, -5), file };
-  }
-  if (lower.endsWith(".smpl")) {
-    return { kind: "sam", base: name.slice(0, -5), file };
-  }
-
-  // prefix-Amiga
-  if (lower.startsWith("mdat.")) {
-    return { kind: "tfx", base: name.slice(5), file };
-  }
-  if (lower.startsWith("smpl.")) {
-    return { kind: "sam", base: name.slice(5), file };
-  }
-
-  return null;
+  const parsed = parseHalfName(file.name);
+  return parsed ? { ...parsed, file } : null;
 }
 
 export type DetectResult = {

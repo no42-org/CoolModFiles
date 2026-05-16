@@ -5,6 +5,25 @@
 # (e.g. classics/test.mod) and does NOT contain a file outside the
 # allowlist named "secret.txt".
 #
+# TFMX coverage (added with add-tfmx-library-playback): the script also
+# probes the broadened allowlist + orphan-half rejection at the file
+# endpoint and the method allowlist on the new tfmx-random endpoint.
+# These TFMX-specific assertions are skipped when the fixtures are not
+# present so the script remains runnable against a MOD-only library;
+# set up the fixtures (see TFMX_FIXTURES_README below) to exercise the
+# full surface.
+#
+#   TFMX_FIXTURES_README:
+#   To exercise the TFMX-specific assertions, place these files inside
+#   the directory pointed to by LIBRARY_ROOT:
+#     tfmx-fixture/mdat.test     ← paired half (any bytes)
+#     tfmx-fixture/smpl.test     ← paired half (any bytes)
+#     tfmx-fixture/mdat.orphan   ← orphan half (NO matching smpl.orphan)
+#   The assertions probe:
+#     - paired half streams (200)
+#     - orphan half is rejected (404) even though its extension is allowlisted
+#     - a sensitively-named orphan (`mdat.passwords`) would not leak
+#
 # Run after `make run` (with a populated mods/ folder) or `npm run dev`
 # (with LIBRARY_ROOT pointing to such a folder).
 #
@@ -112,7 +131,41 @@ check "rejects empty q" "400" \
   "$(http_status "$BASE_URL/api/library/search?q=")"
 check "rejects missing q" "400" \
   "$(http_status "$BASE_URL/api/library/search")"
-
 echo
+
+echo "TFMX random endpoint — method allowlist:"
+check "rejects POST on /api/library/tfmx-random" "405" \
+  "$(http_status -X POST "$BASE_URL/api/library/tfmx-random")"
+check "rejects DELETE on /api/library/tfmx-random" "405" \
+  "$(http_status -X DELETE "$BASE_URL/api/library/tfmx-random")"
+echo
+
+echo "TFMX file endpoint — extension allowlist + orphan rejection:"
+# Gate the TFMX assertion set on fixture presence. The probe IS the
+# "serves paired half" assertion — don't double-count by re-asserting
+# the same response value. Set TFMX_FIXTURES_REQUIRED=1 to fail the run
+# if fixtures are absent (intended for CI).
+fixture_probe=$(http_status "$BASE_URL/api/library/file?path=tfmx-fixture/mdat.test")
+if [ "$fixture_probe" = "200" ]; then
+  echo "  ✓ serves paired TFMX half (.mdat with sibling .smpl) (HTTP 200)"
+  PASS=$((PASS + 1))
+  check "serves sibling .smpl when partner exists" "200" \
+    "$(http_status "$BASE_URL/api/library/file?path=tfmx-fixture/smpl.test")"
+  check "rejects orphan .mdat (no matching .smpl) — security perimeter intact" "404" \
+    "$(http_status "$BASE_URL/api/library/file?path=tfmx-fixture/mdat.orphan")"
+  # Sensitively-named orphan: confirms that broadening the allowlist
+  # did NOT create a path for arbitrary mdat.* files to leak.
+  check "rejects sensitively-named orphan mdat.passwords" "404" \
+    "$(http_status "$BASE_URL/api/library/file?path=tfmx-fixture/mdat.passwords")"
+elif [ -n "${TFMX_FIXTURES_REQUIRED:-}" ]; then
+  echo "  ✗ tfmx-fixture/ not present in LIBRARY_ROOT (TFMX_FIXTURES_REQUIRED set)"
+  echo "    See TFMX_FIXTURES_README at top of script for setup."
+  FAIL=$((FAIL + 1))
+else
+  echo "  (skipped: tfmx-fixture/ not present in LIBRARY_ROOT — see TFMX_FIXTURES_README"
+  echo "   at top of script. Set TFMX_FIXTURES_REQUIRED=1 to fail the run on skip — recommended in CI.)"
+fi
+echo
+
 echo "Result: $PASS passed, $FAIL failed"
 exit $FAIL

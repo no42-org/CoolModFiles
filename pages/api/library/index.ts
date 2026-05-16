@@ -1,6 +1,7 @@
 // GET /api/library?path=<dir>
-// Returns { dirs: string[], files: string[], truncated: boolean } for the
-// immediate children of the requested directory level.
+// Returns { dirs, files, pairs, truncated } for the immediate children
+// of the requested directory level. TFMX-pair halves are grouped into
+// `pairs`; the remaining files are MOD-allowlist filtered into `files`.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs/promises";
@@ -10,10 +11,12 @@ import {
   isModuleFile,
   resolveSafe,
 } from "../../../lib/library";
+import { detectPairsInDir, type TfmxPairEntry } from "../../../lib/library/pairs";
 
 type ListingResponse = {
   dirs: string[];
   files: string[];
+  pairs: TfmxPairEntry[];
   truncated: boolean;
 };
 type ErrorResponse = { error: string };
@@ -52,20 +55,39 @@ export default async function handler(
   }
 
   const dirs: string[] = [];
-  const files: string[] = [];
+  const fileEntries: { name: string; isFile: boolean }[] = [];
   for (const e of entries) {
     if (e.isDirectory()) dirs.push(e.name);
-    else if (e.isFile() && isModuleFile(e.name)) files.push(e.name);
+    else if (e.isFile()) fileEntries.push({ name: e.name, isFile: true });
   }
+  const pairs = detectPairsInDir(fileEntries);
+  // MOD allowlist excludes TFMX-half extensions, so no double-filter is
+  // needed to keep paired halves out of `files`. Orphan halves are
+  // naturally excluded too — they have non-MOD extensions.
+  const files = fileEntries
+    .filter((f) => isModuleFile(f.name))
+    .map((f) => f.name);
   dirs.sort();
   files.sort();
 
-  const total = dirs.length + files.length;
+  // Truncation policy per design.md Open Questions: favour navigation
+  // (dirs) > content groups (pairs) > individual files.
+  const total = dirs.length + pairs.length + files.length;
   const truncated = total > MAX_LISTING;
 
+  const dirsOut = dirs.slice(0, MAX_LISTING);
+  const remainingForPairs = Math.max(0, MAX_LISTING - dirsOut.length);
+  const pairsOut = pairs.slice(0, remainingForPairs);
+  const remainingForFiles = Math.max(
+    0,
+    MAX_LISTING - dirsOut.length - pairsOut.length
+  );
+  const filesOut = files.slice(0, remainingForFiles);
+
   return res.status(200).json({
-    dirs: dirs.slice(0, MAX_LISTING),
-    files: files.slice(0, Math.max(0, MAX_LISTING - dirs.length)),
+    dirs: dirsOut,
+    files: filesOut,
+    pairs: pairsOut,
     truncated,
   });
 }
