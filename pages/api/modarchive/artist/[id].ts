@@ -34,8 +34,9 @@ export default async function handler(
     return res.status(400).json({ error: "page must be a positive integer" });
   }
 
-  // modarchive.org redirects modules.php?<id> → index.php?request=view_artist_modules&query=<id>
-  const baseUrl = `https://modarchive.org/modules.php?${id}`;
+  // Hit the canonical URL directly. modules.php?<id> 302-redirects here and
+  // the redirect drops &page=N, so pagination only works on the post-redirect form.
+  const baseUrl = `https://modarchive.org/index.php?request=view_artist_modules&query=${id}`;
   const url = page === 1 ? baseUrl : `${baseUrl}&page=${page}`;
   const cached = cache.get<PersonModsResponse>(url);
   if (cached) return res.status(200).json(cached);
