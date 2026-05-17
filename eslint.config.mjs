@@ -16,6 +16,9 @@ const config = [
       "public/audio-prewarm.js",
       "mods/**",
       "openspec/**",
+      // Claude Code tool directory: skills, agents, transient worktrees,
+      // etc. — meta-tooling that should not be linted as application code.
+      ".claude/**",
     ],
   },
   {
