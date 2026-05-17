@@ -49,9 +49,12 @@ function readAmigaModel(): AmigaModel {
 
 /**
  * Pick the file extension for a Mod Archive download by sniffing the
- * first 4 bytes of the fetched blob. Returns ".ahx" for AHX or THX
- * content (3-byte ASCII prefix + version byte ∈ {0x00, 0x01}), else
- * null. Callers fall back to ".mod" on null.
+ * first 4 bytes of the fetched blob. Returns:
+ *   - ".ahx" for AHX-magic content (bytes 0-2 = "AHX")
+ *   - ".thx" for THX-magic content (bytes 0-2 = "THX", the legacy name)
+ *   - null otherwise (caller falls back to ".mod")
+ *
+ * Both magics require the version byte at offset 3 to be 0x00 or 0x01.
  *
  * Why sniff instead of reading the chart row's ModItem.filename: the
  * filename isn't always available at download time — random walks,
@@ -59,19 +62,28 @@ function readAmigaModel(): AmigaModel {
  * chart context. Sniffing the bytes is universal and the cost is
  * negligible (4 bytes out of the already-fetched blob).
  *
- * Mirrors the magic-byte gate in lib/audio-player.ts looksLikeAhx —
+ * Why distinguish AHX-magic from THX-magic in the EXTENSION: the spec
+ * scenario "Legacy THX modarchive track downloads as `.thx`" requires
+ * THX-named files to round-trip with their original extension. Since
+ * we sniff bytes (not filename), the bytes ARE the upstream identity:
+ * an AHX-magic file downloads as ".ahx", a THX-magic file downloads
+ * as ".thx". Both play through the same engine via looksLikeAhx —
+ * the extension distinction is purely cosmetic / round-trip fidelity.
+ *
+ * Mirrors the magic-byte gate in lib/ahx-magic.ts looksLikeAhx —
  * keep the two in sync if D4 ever widens (e.g. AHX v2 introducing
  * version byte 0x02).
  */
 async function sniffDownloadExtension(blob: Blob): Promise<string | null> {
   if (blob.size < 4) return null;
   const header = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
-  const prefixMatches =
-    (header[0] === 0x41 && header[1] === 0x48 && header[2] === 0x58) ||
-    (header[0] === 0x54 && header[1] === 0x48 && header[2] === 0x58);
-  if (!prefixMatches) return null;
+  const isAhx =
+    header[0] === 0x41 && header[1] === 0x48 && header[2] === 0x58;
+  const isThx =
+    header[0] === 0x54 && header[1] === 0x48 && header[2] === 0x58;
+  if (!isAhx && !isThx) return null;
   if (header[3] !== 0x00 && header[3] !== 0x01) return null;
-  return ".ahx";
+  return isThx ? ".thx" : ".ahx";
 }
 
 function applyAmigaSetting(player: AudioPlayer, model: AmigaModel) {
