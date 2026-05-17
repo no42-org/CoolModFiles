@@ -14,8 +14,10 @@ The drawer has six tabs: **Mod Archive**, **Library**, **Local**, **♥ Favorite
   - **🏆 Most Revered** — highest-rated mods.
   - **🎤 Artist Charts** — top artists; tap to see and play their mods.
   - **🎼 By Genre** — browse modarchive's genre index, tap a genre to see and play its mods.
-- **Library** — browses a server-curated collection (only visible when the operator has configured one). MOD files appear as `name.mod` rows; TFMX pairs (both halves dropped into the same library directory) appear as `base (TFMX)` rows. Library search matches MOD filenames and TFMX pair base-names. `n` from a TFMX-library track plays another TFMX-library track.
-- **Local** — drop your own MOD files into the browser. Files stay on your device for the session — nothing is uploaded. **TFMX pairs** (Hülsbeck / Hippel two-file Amiga game music) are also accepted here — drop both halves of each pair together (`*.tfx + *.sam`, `mdat.X + smpl.X`, or `*.mdat + *.smpl`) and the catalog surfaces each pair as a single row labelled `(TFMX)`. Multi-subsong tracks currently play the first subsong; in-UI subsong selection is on the follow-up list.
+
+  Modarchive's `.ahx` catalogue (~1,000 modules) now plays too — these used to error with "Couldn't play this track" because they aren't MOD-format. Both the canonical `AHX` magic and the legacy `THX` magic are accepted.
+- **Library** — browses a server-curated collection (only visible when the operator has configured one). MOD files and AHX/THX files appear as `name.mod` / `name.ahx` rows; TFMX pairs (both halves dropped into the same library directory) appear as `base (TFMX)` rows. Library search matches MOD/AHX filenames and TFMX pair base-names. `n` from a TFMX-library track plays another TFMX-library track.
+- **Local** — drop your own MOD or AHX files into the browser. Files stay on your device for the session — nothing is uploaded. **AHX/THX** (Abyss' Highest eXperience — Dexter & Pink's synth-based Amiga tracker, 1992) plays through a dedicated engine selected automatically by the file's magic bytes. **TFMX pairs** (Hülsbeck / Hippel two-file Amiga game music) are also accepted — drop both halves of each pair together (`*.tfx + *.sam`, `mdat.X + smpl.X`, or `*.mdat + *.smpl`) and the catalog surfaces each pair as a single row labelled `(TFMX)`.
 - **♥ Favorites** — your saved tracks. Click any to play.
 - **? Help** — this document.
 
