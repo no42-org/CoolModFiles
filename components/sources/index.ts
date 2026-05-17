@@ -26,9 +26,22 @@ export const MODULE_EXTENSIONS = [
   ".ult",
 ] as const;
 
+// AHX/THX extensions, routed through the AHX engine. The engine itself
+// is selected at AudioPlayer.play() by magic-byte sniff (4 bytes: prefix
+// + version), not by extension — so a mis-extensioned file (e.g. AHX
+// bytes named *.mod) still routes correctly. The extension allowlist
+// only decides which files surface in catalogue rows. Library API
+// allowlists in pages/api/library/{index,file,random,search}.ts import
+// isModuleFile from here directly, so this single edit widens both the
+// client catalogues AND the server-side endpoints transitively.
+export const AHX_EXTENSIONS = [".ahx", ".thx"] as const;
+
 export function isModuleFile(filename: string): boolean {
   const lower = filename.toLowerCase();
-  return MODULE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+  return (
+    MODULE_EXTENSIONS.some((ext) => lower.endsWith(ext)) ||
+    AHX_EXTENSIONS.some((ext) => lower.endsWith(ext))
+  );
 }
 
 export type ModArchiveSource = { type: "modarchive"; id: number };
