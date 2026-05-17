@@ -190,11 +190,16 @@ class AHX extends AudioWorkletProcessor {
 			case 'selectSubsong':
 				if (!this.loaded) break
 				{
-					// ahx2play's ahxPlay(subsong) re-initialises playback at
-					// the requested subsong. Worklet's user-visible index is
-					// [0..numSubsongs-1]; ahx2play's internal index range is
-					// [0..song.Subsongs]. They line up — index 0 is the main
-					// song in both views.
+					// numSubsongs = wasm_subsongs() + 1 per the spike memo:
+					// song.Subsongs is the count of EXTRA subsongs beyond
+					// the implicit main song. ahx2play's ahxPlay(subsong)
+					// accepts the inclusive range [0..song.Subsongs] —
+					// 0 = the implicit main song, 1..N = extras — so
+					// numSubsongs is also the count of valid picker
+					// indices. Defensive clamp here mirrors Player.tsx's
+					// `idx < count` gate on handleSubsongChange and turns
+					// a coincidental invariant into a guarantee.
+					if (typeof v !== 'number' || v < 0 || v >= this.numSubsongs) break
 					const rc = M.ccall('wasm_play', 'number', ['number'], [v])
 					if (rc === 0) {
 						this.songIndex = v
@@ -305,6 +310,13 @@ class AHX extends AudioWorkletProcessor {
 		// Start playback at subsong 0 (the implicit main song).
 		const playRc = M.ccall('wasm_play', 'number', ['number'], [0])
 		if (playRc !== 0) {
+			// wasm_load succeeded but wasm_play didn't — ahx2play's global
+			// song_t was populated by the loader. We MUST call wasm_free
+			// here before bailing: a subsequent _play would call _stop,
+			// _stop checks `if (M && this.loaded)` which is false (loaded
+			// never got set), and the leaked song state would persist
+			// for the rest of the session.
+			M.ccall('wasm_free', null, [], [])
 			this.port.postMessage({
 				cmd: 'err',
 				val: 'ptr',
@@ -356,6 +368,9 @@ class AHX extends AudioWorkletProcessor {
 		// meta.type = "ahx" pinned per design.md D12 — collapses the v0/v1
 		// distinction at the meta layer. The version byte lives on
 		// meta.song.revision for any consumer that wants it.
+		// meta.song.songIndex is the currently-playing subsong; required
+		// by the spec scenario "Subsong selection switches the playing
+		// subsong" so a consumer can verify the switch took effect.
 		this.port.postMessage({
 			cmd: 'meta',
 			meta: {
@@ -369,6 +384,7 @@ class AHX extends AudioWorkletProcessor {
 					orders: [],
 					patterns: [],
 					numSubsongs: this.numSubsongs,
+					songIndex: this.songIndex,
 					revision: this.revision,
 				},
 				songs,
