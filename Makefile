@@ -38,9 +38,10 @@ e2e: install ## Run Playwright end-to-end tests (installs browsers if missing)
 	npx playwright install --with-deps
 	npm run test:e2e
 
-verify: install ## Run lint + typecheck + audit + build (fail-fast)
+verify: install ## Run lint + typecheck + unit-tests + audit + build (fail-fast)
 	npm run lint
 	npm run typecheck
+	npm test
 	npm audit --audit-level=high
 	npm run build
 

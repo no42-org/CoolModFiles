@@ -51,6 +51,11 @@ function SoundPane({
   // stereo slider is live, so showing the all-disabled banner would
   // be misleading.
   const allDisabled = amigaDisabled && stereoDisabled;
+  // Soft per-control hint for AHX: only the Amiga toggle is disabled
+  // (stereo separation works natively), so a silent grey-out would
+  // confuse users who expect the all-disabled banner. Show a one-line
+  // explanation next to the Amiga heading instead.
+  const showAmigaHintForAhx = activeEngine === "ahx";
 
   return (
     <div className={`${styles.wrapper} ${allDisabled ? styles.inactive : ""}`}>
@@ -62,6 +67,12 @@ function SoundPane({
       ) : null}
 
       <h2 className={styles.sectionHeading}>Amiga emulation</h2>
+      {showAmigaHintForAhx ? (
+        <p className={styles.note} role="status">
+          Amiga emulation has no effect for AHX tracks — they render
+          through ahx2play&apos;s built-in Paula model.
+        </p>
+      ) : null}
 
       <div className={styles.options} role="radiogroup" aria-label="Amiga emulation">
         {OPTIONS.map((opt) => (
