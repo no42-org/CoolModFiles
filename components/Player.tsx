@@ -32,7 +32,7 @@ import {
 } from "./sources";
 import type { FavoriteTrack } from "./LikedMod";
 import type { ModItem } from "../lib/modarchive/types";
-import { AudioPlayer } from "../lib/audio-player";
+import { AudioPlayer, type EngineKind } from "../lib/audio-player";
 
 const DEFAULT_VOLUME = 80;
 
@@ -45,6 +45,33 @@ function readAmigaModel(): AmigaModel {
   return AMIGA_MODELS.includes(raw as AmigaModel)
     ? (raw as AmigaModel)
     : DEFAULT_AMIGA_MODEL;
+}
+
+/**
+ * Pick the file extension for a Mod Archive download by sniffing the
+ * first 4 bytes of the fetched blob. Returns ".ahx" for AHX or THX
+ * content (3-byte ASCII prefix + version byte ∈ {0x00, 0x01}), else
+ * null. Callers fall back to ".mod" on null.
+ *
+ * Why sniff instead of reading the chart row's ModItem.filename: the
+ * filename isn't always available at download time — random walks,
+ * permalink loads, and favorites all reach downloadTrack without a
+ * chart context. Sniffing the bytes is universal and the cost is
+ * negligible (4 bytes out of the already-fetched blob).
+ *
+ * Mirrors the magic-byte gate in lib/audio-player.ts looksLikeAhx —
+ * keep the two in sync if D4 ever widens (e.g. AHX v2 introducing
+ * version byte 0x02).
+ */
+async function sniffDownloadExtension(blob: Blob): Promise<string | null> {
+  if (blob.size < 4) return null;
+  const header = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+  const prefixMatches =
+    (header[0] === 0x41 && header[1] === 0x48 && header[2] === 0x58) ||
+    (header[0] === 0x54 && header[1] === 0x48 && header[2] === 0x58);
+  if (!prefixMatches) return null;
+  if (header[3] !== 0x00 && header[3] !== 0x01) return null;
+  return ".ahx";
 }
 
 function applyAmigaSetting(player: AudioPlayer, model: AmigaModel) {
@@ -245,6 +272,14 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     React.useState<AmigaModel>(readAmigaModel);
   const [stereoSeparation, setStereoSeparation] =
     React.useState<number>(readStereoSeparation);
+  // Mirror of AudioPlayer.activeEngine in React state, set synchronously
+  // after each player.play() call so the Sound pane's per-control
+  // gating updates immediately (without waiting for the new worklet's
+  // meta postback). undefined = "no track ever played" — both Sound-pane
+  // controls stay live so the user can pre-configure their defaults.
+  // See design.md D9 in openspec/changes/add-ahx-playback/.
+  const [activeEngine, setActiveEngine] =
+    React.useState<EngineKind | undefined>(undefined);
   const [maxId] = React.useState(latestId);
   const [playingSource, setPlayingSource] = React.useState<Source>(
     () => initialSource || modArchive(getRandomInt(0, latestId))
@@ -397,14 +432,16 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     }
     if (volumeMuteKey) toggleMute();
     if (amigaKey) {
-      // Mirror the SoundPane's MOD-vs-non-MOD gate: Amiga emulation is a
-      // libopenmpt ctl forwarder that no-ops on TFMX. Without this gate
-      // the `m` shortcut would still cycle the model + toast + write
-      // localStorage while the SoundPane shows itself as disabled — UI
-      // and behaviour disagreeing. Pre-track (`type` not yet set) stays
-      // interactive so users can pre-configure their default.
+      // Mirror the SoundPane's per-control gate (design.md D9): the
+      // Amiga emulation toggle is a libopenmpt ctl forwarder that has
+      // no analog in either tfmx or ahx. Without this gate the `m`
+      // shortcut would still cycle the model + toast + write
+      // localStorage while the SoundPane shows the toggle as disabled
+      // — UI and behaviour disagreeing. Pre-track (`activeEngine`
+      // still undefined) stays interactive so users can pre-configure
+      // their default.
       const nonModActive =
-        !!metaData.type && metaData.type.toLowerCase() !== "mod";
+        activeEngine !== undefined && activeEngine !== "libopenmpt";
       if (nonModActive) {
         showToast("Amiga emulation only affects MOD tracks");
       } else {
@@ -763,6 +800,14 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         } else {
           player.play(buffer as ArrayBuffer);
         }
+        // Capture the new engine kind synchronously. AudioPlayer.play()
+        // sets `this.active` synchronously before any await/Promise.then
+        // chain (per design.md D9), so `player.activeEngine` reflects
+        // the destination engine the instant play() returns. Mirrors it
+        // into React state so the Sound pane's per-control gating
+        // re-renders immediately — without this, gating would wait for
+        // the new worklet's meta postback to update metaData.type.
+        setActiveEngine(player.activeEngine);
         // Override the worklet's hardcoded play() defaults (which stamp
         // emulate_amiga=1 / type=a1200 on every module) so the user's
         // current Sound-pane choice wins on every track load. FIFO
@@ -887,9 +932,16 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             `https://api.modarchive.org/downloads.php?moduleid=${source.id}`
           );
           const blob = await res.blob();
+          // Pick the extension by sniffing the first 4 bytes (per D13 in
+          // openspec/changes/add-ahx-playback/). AHX/THX returns ".ahx";
+          // everything else falls back to ".mod" matching the historical
+          // default. Without this, AHX files downloaded from Mod Archive
+          // would mislabel as ".mod" — sharing the file would propagate
+          // the wrong extension to recipients.
+          const ext = (await sniffDownloadExtension(blob)) ?? ".mod";
           triggerDownload(
             window.URL.createObjectURL(blob),
-            `${metaData.title || source.id}.mod`
+            `${metaData.title || source.id}${ext}`
           );
           break;
         }
@@ -985,7 +1037,11 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         `https://api.modarchive.org/downloads.php?moduleid=${mod.id}`
       );
       const blob = await res.blob();
-      await mods.file(`${mod.title || mod.id}.mod`, blob, { binary: true });
+      // Same per-track sniff as downloadTrack's modarchive branch — a
+      // favorited AHX/THX file zips up as ".ahx" instead of mislabeling
+      // as ".mod". See sniffDownloadExtension's comment for rationale.
+      const ext = (await sniffDownloadExtension(blob)) ?? ".mod";
+      await mods.file(`${mod.title || mod.id}${ext}`, blob, { binary: true });
     }
     const zipContent = await zip.generateAsync({ type: "blob" });
     const url = window.URL.createObjectURL(zipContent);
@@ -1119,7 +1175,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             soundProps={{
               amigaModel,
               setAmigaModel,
-              trackType: metaData.type,
+              activeEngine,
               stereoSeparation,
               setStereoSeparation: (val) => {
                 setStereoSeparation(val);

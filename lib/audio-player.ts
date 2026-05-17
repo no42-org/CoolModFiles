@@ -25,6 +25,8 @@
  * byte-for-byte the same as before this change.
  */
 
+import { looksLikeAhx } from "./ahx-magic";
+
 export type TfmxPair = {
   tfx: ArrayBuffer | Uint8Array;
   sam: ArrayBuffer | Uint8Array;
@@ -33,7 +35,7 @@ export type TfmxPair = {
 
 export type AudioPlayerConfig = ChiptuneConfig;
 
-type EngineKind = "libopenmpt" | "tfmx" | "ahx";
+export type EngineKind = "libopenmpt" | "tfmx" | "ahx";
 
 type EventName =
   | "onInitialized"
@@ -54,33 +56,10 @@ function isTfmxPair(input: unknown): input is TfmxPair {
   );
 }
 
-/**
- * Magic-byte sniff for AHX/THX buffers. Returns true iff:
- *  - The buffer has at least 4 bytes
- *  - Bytes 0-2 are ASCII "AHX" (0x41 0x48 0x58) OR ASCII "THX" (0x54 0x48 0x58)
- *  - Byte 3 (the format version byte) is 0x00 (v1.00–1.27) or 0x01 (v2.0+)
- *
- * The version-byte allowlist matters: bare 3-letter ASCII trigrams are
- * weak discriminators. A MOD/S3M/STM file whose 20-byte song title
- * happens to start with "AHX" or "THX" (zero-padded to byte 3 = 0x00)
- * passes a naïve 3-byte check; the 4-byte gate makes the false-positive
- * class narrower (per design.md D4 in openspec/changes/add-ahx-playback/).
- *
- * False positives that survive the gate are handled by the AHX engine's
- * load step — a non-AHX buffer with matching first 4 bytes fails
- * ahxLoadFromRAM, the worklet emits {cmd:'err',val:'ptr'}, and the
- * source-type-aware error path recovers.
- */
-function looksLikeAhx(input: ArrayBuffer | TfmxPair): input is ArrayBuffer {
-  if (!(input instanceof ArrayBuffer)) return false;
-  if (input.byteLength < 4) return false;
-  const v = new Uint8Array(input, 0, 4);
-  const prefixMatches =
-    (v[0] === 0x41 && v[1] === 0x48 && v[2] === 0x58) ||
-    (v[0] === 0x54 && v[1] === 0x48 && v[2] === 0x58);
-  if (!prefixMatches) return false;
-  return v[3] === 0x00 || v[3] === 0x01;
-}
+// looksLikeAhx is the magic-byte sniff that decides AHX dispatch. It
+// lives in lib/ahx-magic.ts so it can be unit-tested in isolation
+// without dragging in this file's ChiptuneJsPlayer ambient global.
+// See that file for the full rationale + the false-positive analysis.
 
 export class AudioPlayer {
   context: AudioContext;
