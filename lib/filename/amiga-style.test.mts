@@ -265,6 +265,54 @@ describe("toAmigaStyle in 'all' mode (Amiga-everywhere)", () => {
     });
   });
 
+  describe("format-identity gate: step 3 alias does not override step 2 suffix", () => {
+    // When a name carries an unrelated allow-list suffix, the file's
+    // actual extension is the format identity. Step 3's alias match
+    // must not override it.
+
+    it("thx.foo.mod preserves .mod identity → mod.thx.foo (NOT ahx.foo)", () => {
+      expect(toAmigaStyle("thx.foo.mod")).toBe("mod.thx.foo");
+    });
+
+    it("med.foo.mod preserves .mod identity → mod.med.foo (NOT med.foo)", () => {
+      expect(toAmigaStyle("med.foo.mod")).toBe("mod.med.foo");
+    });
+
+    it("mod.echoing.med (mismatched prefix and suffix) → med.mod.echoing", () => {
+      expect(toAmigaStyle("mod.echoing.med")).toBe("med.mod.echoing");
+    });
+
+    it("Thx.Foo.Mod (mixed case, same class) → mod.Thx.Foo", () => {
+      expect(toAmigaStyle("Thx.Foo.Mod")).toBe("mod.Thx.Foo");
+    });
+
+    it("matching prefix+suffix still collapses normally", () => {
+      expect(toAmigaStyle("mod.echoing.mod")).toBe("mod.echoing");
+    });
+
+    it("alias still fires when no suffix was stripped (thx.dexter → ahx.dexter)", () => {
+      expect(toAmigaStyle("thx.dexter")).toBe("ahx.dexter");
+    });
+
+    it("thx.foo.ahx (alias agrees with suffix) → ahx.foo", () => {
+      expect(toAmigaStyle("thx.foo.ahx")).toBe("ahx.foo");
+    });
+
+    it("idempotent under repeat application for thx.foo.mod", () => {
+      const once = toAmigaStyle("thx.foo.mod");
+      const twice = toAmigaStyle(once);
+      expect(once).toBe("mod.thx.foo");
+      expect(twice).toBe(once);
+    });
+
+    it("idempotent under repeat application for med.foo.mod", () => {
+      const once = toAmigaStyle("med.foo.mod");
+      const twice = toAmigaStyle(once);
+      expect(once).toBe("mod.med.foo");
+      expect(twice).toBe(once);
+    });
+  });
+
   describe("idempotency guard for base-equals-prefix-letters inputs", () => {
     // Without the step-2 guard, Mod.Mod would yield mod.Mod on first
     // pass and mod.mod on second pass — losing strict idempotency.

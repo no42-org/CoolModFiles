@@ -155,11 +155,22 @@ export function toAmigaStyle(
   // Step 3: working string already in prefix form? Iterate aliasEntries
   // so a recognized prefix (e.g. `thx.`) emits its canonical output
   // form (`ahx.`) rather than itself — see PREFIX_ALIAS_TABLE.
+  //
+  // Format-identity gate: if step 2 stripped a suffix (impliedPrefix
+  // !== null), only fire when the alias's canonical output matches the
+  // implied prefix. Otherwise the alias would override the format
+  // identity carried by the file's actual extension — e.g. without the
+  // gate, `thx.foo.mod` (a MOD file whose author happened to name it
+  // `thx.foo`) would render as `ahx.foo`, silently dropping the .mod
+  // format identity. With the gate, step 3 skips, step 4 fires, and
+  // the result is `mod.thx.foo` — preserving the MOD identity and
+  // treating `thx.` as part of the base.
   const workingLower = working.toLowerCase();
   for (const { from, to } of ctx.aliasEntries) {
     if (
       workingLower.startsWith(from) &&
-      workingLower.length > from.length
+      workingLower.length > from.length &&
+      (impliedPrefix === null || to === impliedPrefix)
     ) {
       const remainder = working.slice(from.length);
       return to + remainder;
