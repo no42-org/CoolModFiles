@@ -6,6 +6,7 @@ import {
   type LibrarySource,
   type TfmxLibrarySource,
 } from "../sources";
+import { useFilenameStyle } from "../../lib/filename/context";
 
 type PairEntry = { base: string; tfx: string; sam: string };
 
@@ -35,6 +36,7 @@ function LibraryCatalog({
   setCurrentPath,
   onPlay,
 }: LibraryCatalogProps) {
+  const { render, renderPair } = useFilenameStyle();
   const [listing, setListing] = React.useState<Listing | null>(null);
   const [error, setError] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -98,17 +100,26 @@ function LibraryCatalog({
           <div className={styles.empty}>No matches.</div>
         ) : (
           <ul className={styles.list}>
-            {searchResults.map((r) =>
-              r.kind === "mod" ? (
-                <li
-                  key={`mod:${r.path}`}
-                  className={`${styles.row} ${styles.file}`}
-                  onClick={() => onPlay(library(r.path))}
-                  title={r.path}
-                >
-                  {r.path}
-                </li>
-              ) : (
+            {searchResults.map((r) => {
+              if (r.kind === "mod") {
+                const lastSlash = r.path.lastIndexOf("/");
+                const dir =
+                  lastSlash === -1 ? "" : r.path.slice(0, lastSlash + 1);
+                const base =
+                  lastSlash === -1 ? r.path : r.path.slice(lastSlash + 1);
+                return (
+                  <li
+                    key={`mod:${r.path}`}
+                    className={`${styles.row} ${styles.file}`}
+                    onClick={() => onPlay(library(r.path))}
+                    title={r.path}
+                  >
+                    {dir}
+                    {render(base)}
+                  </li>
+                );
+              }
+              return (
                 <li
                   key={`tfmx:${r.tfxPath}`}
                   className={`${styles.row} ${styles.file}`}
@@ -117,10 +128,10 @@ function LibraryCatalog({
                   }
                   title={`${r.tfxPath} + ${r.samPath}`}
                 >
-                  {r.base} (TFMX)
+                  {renderPair(r.base)}
                 </li>
-              )
-            )}
+              );
+            })}
           </ul>
         )}
       </div>
@@ -192,7 +203,7 @@ function LibraryCatalog({
               }
               title={`${p.tfx} + ${p.sam}`}
             >
-              {p.base} (TFMX)
+              {renderPair(p.base)}
             </li>
           ))}
           {listing.files.map((f) => (
@@ -202,7 +213,7 @@ function LibraryCatalog({
               onClick={() => onPlay(library(joinPath([...segments, f])))}
               title={f}
             >
-              {f}
+              {render(f)}
             </li>
           ))}
           {listing.truncated && (

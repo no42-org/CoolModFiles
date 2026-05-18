@@ -10,6 +10,7 @@ import type {
   Pagination,
   PersonModsResponse,
 } from "../../lib/modarchive/types";
+import { useFilenameStyle } from "../../lib/filename/context";
 
 type PersonModsProps = {
   kind: "artist";
@@ -23,6 +24,7 @@ type State =
   | { status: "ok"; items: ModItem[]; pagination: Pagination };
 
 function PersonMods({ kind, id, onPick }: PersonModsProps) {
+  const { render } = useFilenameStyle();
   const [state, setState] = React.useState<State>({ status: "loading" });
   const [reloadCounter, setReloadCounter] = React.useState(0);
   const [page, setPage] = React.useState(1);
@@ -93,7 +95,9 @@ function PersonMods({ kind, id, onPick }: PersonModsProps) {
           >
             <span className={styles.title}>{item.title}</span>
             {item.filename && (
-              <span className={styles.subtitle}>{item.filename}</span>
+              <span className={styles.subtitle} title={item.filename}>
+                {render(item.filename)}
+              </span>
             )}
           </li>
         ))}

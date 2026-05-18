@@ -1,6 +1,7 @@
 import React from "react";
 import Slider from "rc-slider";
 import styles from "./SoundPane.module.scss";
+import { type FilenameStyle } from "../lib/filename/amiga-style";
 
 type AmigaModel = "off" | "a500" | "a1200";
 
@@ -26,7 +27,23 @@ type SoundPaneProps = {
   activeEngine?: EngineKind;
   stereoSeparation: number;
   setStereoSeparation: (v: number) => void;
+  filenameStyle: FilenameStyle;
+  setFilenameStyle: (s: FilenameStyle) => void;
 };
+
+const FILENAME_STYLE_OPTIONS: {
+  value: FilenameStyle;
+  label: string;
+  sub: string;
+}[] = [
+  { value: "auto", label: "Auto", sub: "Render filenames as on disk" },
+  { value: "amiga", label: "Amiga", sub: "Prefix form for Amiga-native formats" },
+  {
+    value: "amiga-all",
+    label: "Amiga everywhere",
+    sub: "Prefix form for all module formats",
+  },
+];
 
 const OPTIONS: { value: AmigaModel; label: string; sub: string }[] = [
   { value: "off", label: "Off", sub: "Modern clean resampler" },
@@ -40,6 +57,8 @@ function SoundPane({
   activeEngine,
   stereoSeparation,
   setStereoSeparation,
+  filenameStyle,
+  setFilenameStyle,
 }: SoundPaneProps) {
   // Per-control disabled predicates per D9. activeEngine === undefined
   // means "no track yet" — both controls stay live so users can
@@ -127,6 +146,33 @@ function SoundPane({
             <span className={styles.stereoCaption}>mono</span>
           </div>
           <span className={styles.stereoPercent}>{stereoSeparation}%</span>
+        </div>
+      </section>
+
+      <section
+        className={`${styles.stereoSection} ${styles.filenameStyleSection}`}
+      >
+        <h2 className={styles.sectionHeading}>Filename style</h2>
+        <div
+          className={styles.options}
+          role="radiogroup"
+          aria-label="Filename style"
+        >
+          {FILENAME_STYLE_OPTIONS.map((opt) => (
+            <label key={opt.value} className={styles.option}>
+              <input
+                type="radio"
+                name="filenameStyle"
+                value={opt.value}
+                checked={filenameStyle === opt.value}
+                onChange={() => setFilenameStyle(opt.value)}
+              />
+              <span className={styles.optionLabel}>
+                <span className={styles.optionTitle}>{opt.label}</span>
+                <span className={styles.optionSub}>{opt.sub}</span>
+              </span>
+            </label>
+          ))}
         </div>
       </section>
 
