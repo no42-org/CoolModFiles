@@ -9,6 +9,7 @@ import {
 } from "../sources";
 import { detectTfmxPairs } from "./tfmx-pairs";
 import { showToast } from "../../utils";
+import { useFilenameStyle } from "../../lib/filename/context";
 
 type LocalCatalogProps = {
   pickedFiles: File[];
@@ -25,6 +26,7 @@ function LocalCatalog({
   setPickedTfmxPairs,
   onPlay,
 }: LocalCatalogProps) {
+  const { render, renderPair } = useFilenameStyle();
   const [dragActive, setDragActive] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -135,7 +137,7 @@ function LocalCatalog({
               onClick={() => onPlay(pair)}
               title={`${pair.tfx.name} + ${pair.sam.name}`}
             >
-              {pair.base} (TFMX)
+              {renderPair(pair.base)}
             </li>
           ))}
           {pickedFiles.map((file, idx) => (
@@ -145,7 +147,7 @@ function LocalCatalog({
               onClick={() => onPlay(local(file))}
               title={file.name}
             >
-              {file.name}
+              {render(file.name)}
             </li>
           ))}
         </ul>

@@ -11,6 +11,7 @@ import type {
   ModChartResponse,
   Pagination,
 } from "../../lib/modarchive/types";
+import { useFilenameStyle } from "../../lib/filename/context";
 
 type ChartListProps = {
   kind: Extract<ChartKind, "featured" | "tophits" | "topfavourites" | "topscore">;
@@ -23,6 +24,7 @@ type State =
   | { status: "ok"; items: ModItem[]; pagination: Pagination };
 
 function ChartList({ kind, onPick }: ChartListProps) {
+  const { render } = useFilenameStyle();
   const [state, setState] = React.useState<State>({ status: "loading" });
   const [reloadCounter, setReloadCounter] = React.useState(0);
   const [page, setPage] = React.useState(1);
@@ -97,7 +99,9 @@ function ChartList({ kind, onPick }: ChartListProps) {
             )}
             <span className={styles.title}>{item.title}</span>
             {item.filename && (
-              <span className={styles.subtitle}>{item.filename}</span>
+              <span className={styles.subtitle} title={item.filename}>
+                {render(item.filename)}
+              </span>
             )}
           </li>
         ))}

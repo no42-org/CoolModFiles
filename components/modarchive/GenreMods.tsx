@@ -10,6 +10,7 @@ import type {
   ModItem,
   Pagination,
 } from "../../lib/modarchive/types";
+import { useFilenameStyle } from "../../lib/filename/context";
 
 type GenreModsProps = {
   id: number;
@@ -22,6 +23,7 @@ type State =
   | { status: "ok"; items: ModItem[]; pagination: Pagination };
 
 function GenreMods({ id, onPick }: GenreModsProps) {
+  const { render } = useFilenameStyle();
   const [state, setState] = React.useState<State>({ status: "loading" });
   const [reloadCounter, setReloadCounter] = React.useState(0);
   const [page, setPage] = React.useState(1);
@@ -93,7 +95,9 @@ function GenreMods({ id, onPick }: GenreModsProps) {
           >
             <span className={styles.title}>{item.title}</span>
             {item.filename && (
-              <span className={styles.subtitle}>{item.filename}</span>
+              <span className={styles.subtitle} title={item.filename}>
+                {render(item.filename)}
+              </span>
             )}
           </li>
         ))}

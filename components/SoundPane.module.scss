@@ -17,9 +17,17 @@
 // work, and the banner stays full-opacity so the explanation remains
 // readable.
 .inactive {
-  > :not(.note) {
+  > :not(.note):not(.filenameStyleSection) {
     opacity: 0.45;
   }
+}
+
+// Filename style is a display preference, not an audio preference, so
+// it stays fully interactive and visually un-dimmed even when the
+// audio-side controls are inactive (e.g. during TFMX playback).
+.filenameStyleSection {
+  // Intentionally empty — exists as a selector hook for .inactive's
+  // exemption list above. Layout inherits from .stereoSection sibling.
 }
 
 .optionDisabled {

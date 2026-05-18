@@ -23,6 +23,7 @@ import type {
 import type { FavoriteTrack } from "./LikedMod";
 import type { ModItem } from "../lib/modarchive/types";
 import type { EngineKind } from "../lib/audio-player";
+import type { FilenameStyle } from "../lib/filename/amiga-style";
 
 export type DrawerTabId =
   | "modarchive"
@@ -62,6 +63,8 @@ type SoundProps = {
   activeEngine?: EngineKind;
   stereoSeparation: number;
   setStereoSeparation: (v: number) => void;
+  filenameStyle: FilenameStyle;
+  setFilenameStyle: (s: FilenameStyle) => void;
 };
 
 type SourceDrawerProps = {

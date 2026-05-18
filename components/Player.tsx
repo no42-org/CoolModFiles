@@ -33,6 +33,8 @@ import {
 import type { FavoriteTrack } from "./LikedMod";
 import type { ModItem } from "../lib/modarchive/types";
 import { AudioPlayer, type EngineKind } from "../lib/audio-player";
+import { FilenameStyleProvider } from "../lib/filename/context";
+import { type FilenameStyle } from "../lib/filename/amiga-style";
 
 const DEFAULT_VOLUME = 80;
 
@@ -45,6 +47,16 @@ function readAmigaModel(): AmigaModel {
   return AMIGA_MODELS.includes(raw as AmigaModel)
     ? (raw as AmigaModel)
     : DEFAULT_AMIGA_MODEL;
+}
+
+const FILENAME_STYLES: FilenameStyle[] = ["auto", "amiga", "amiga-all"];
+const DEFAULT_FILENAME_STYLE: FilenameStyle = "auto";
+
+function readFilenameStyle(): FilenameStyle {
+  const raw = localStorage.getItem("display.filenameStyle");
+  return FILENAME_STYLES.includes(raw as FilenameStyle)
+    ? (raw as FilenameStyle)
+    : DEFAULT_FILENAME_STYLE;
 }
 
 /**
@@ -284,6 +296,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     React.useState<AmigaModel>(readAmigaModel);
   const [stereoSeparation, setStereoSeparation] =
     React.useState<number>(readStereoSeparation);
+  const [filenameStyle, setFilenameStyle] =
+    React.useState<FilenameStyle>(readFilenameStyle);
   // Mirror of AudioPlayer.activeEngine in React state, set synchronously
   // after each player.play() call so the Sound pane's per-control
   // gating updates immediately (without waiting for the new worklet's
@@ -630,6 +644,10 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   React.useEffect(() => {
     localStorage.setItem("audio.stereoSeparation", String(stereoSeparation));
   }, [stereoSeparation]);
+
+  React.useEffect(() => {
+    localStorage.setItem("display.filenameStyle", filenameStyle);
+  }, [filenameStyle]);
 
   React.useEffect(() => {
     if (player && playerReady) {
@@ -1101,6 +1119,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   }, [selectedSubsong]);
 
   return (
+    <FilenameStyleProvider style={filenameStyle}>
     <div>
       <ToastContainer />
       {playingSource.type !== "modarchive" && (
@@ -1193,6 +1212,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
                 setStereoSeparation(val);
                 player?.setStereoSeparation(val);
               },
+              filenameStyle,
+              setFilenameStyle,
             }}
           />
         </div>
@@ -1219,6 +1240,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         </div>
       )}
     </div>
+    </FilenameStyleProvider>
   );
 }
 

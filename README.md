@@ -45,6 +45,33 @@ CoolModFiles plays three families of Amiga music:
 | `/` or `q`         | open in-app Help                                |
 | `esc`              | close the side drawer                           |
 
+## Sound settings
+
+The Sound pane (side drawer → Sound) persists three preferences across
+sessions: **Amiga emulation** (off / A500 / A1200; also bound to `m`),
+**Stereo separation** (slider), and **Filename style**.
+
+The **Filename style** toggle is display-only and has three options:
+
+- **Auto** (default) — render filenames verbatim as on disk.
+- **Amiga** — render Amiga-native module filenames in scene prefix form
+  across every catalog: `echoing.mod` → `mod.echoing`, `space.med` →
+  `med.space`, `quartet.okt` → `okt.quartet`, `dexter.ahx` (and
+  `dexter.thx`) → `ahx.dexter`. Covers `.mod`, `.med`, `.okt`, `.ahx`,
+  and `.thx`; PC-era tracker formats are left unchanged.
+- **Amiga everywhere** — the same prefix transform, extended to every
+  supported module format including PC-era trackers: `dreamland.xm` →
+  `xm.dreamland`, `groove.it` → `it.groove`, `rush.s3m` → `s3m.rush`,
+  etc. Trades historical accuracy for visual consistency across all
+  catalog rows.
+
+TFMX pair rows always render as `<base> (TFMX)` regardless of the
+chosen style — the `(TFMX)` suffix carries the format identity, and the
+underlying file shapes (`*.tfx + *.sam`, `mdat.* + smpl.*`, `*.mdat +
+*.smpl`) make a single prefix label misleading. Downloads always keep
+the canonical on-disk filename, and hovering a row reveals the on-disk
+basename in a tooltip so it remains copyable for search/share.
+
 ## Development
 
 ```bash
