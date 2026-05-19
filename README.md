@@ -51,6 +51,22 @@ The Sound pane (side drawer → Sound) persists three preferences across
 sessions: **Amiga emulation** (off / A500 / A1200; also bound to `m`),
 **Stereo separation** (slider), and **Filename style**.
 
+**Amiga emulation** only applies to classic MOD files (libopenmpt-reported
+`type === "mod"`). When a PC-tracker format (XM / IT / S3M / MPTM / etc.)
+is loaded, the radio group is disabled and an inline hint explains why —
+Paula emulation has no meaning for tracks that were never authored for
+Amiga hardware. AHX and TFMX engines also disable the radio group with
+their own hints: AHX renders through ahx2play's built-in Paula model, and
+TFMX renders through libtfmx's own playback engine. The `m` keyboard
+shortcut still cycles the stored preference even when the radios are
+visually disabled — it takes effect on the next MOD track.
+
+**Stereo separation** is enabled across every engine: libopenmpt honours
+the value live; AHX honours it live via ahx2play's native stereo separation
+at the same 0..100 scale; TFMX honours it on the **next** track (libtfmx's
+panning is fixed at `tfx_mixer_init` time — slider drag during a TFMX track
+records the value but doesn't change the currently-playing audio).
+
 The **Filename style** toggle is display-only and has three options:
 
 - **Auto** (default) — render filenames verbatim as on disk.

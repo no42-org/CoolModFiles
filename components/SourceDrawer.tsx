@@ -61,6 +61,7 @@ type SoundProps = {
   amigaModel: AmigaModel;
   setAmigaModel: (m: AmigaModel) => void;
   activeEngine?: EngineKind;
+  trackType?: string;
   stereoSeparation: number;
   setStereoSeparation: (v: number) => void;
   filenameStyle: FilenameStyle;

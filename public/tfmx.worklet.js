@@ -218,15 +218,24 @@ class TFX extends AudioWorkletProcessor {
 				}
 				break
 			// Accepted-silently for facade parity. The AudioPlayer forwards
-			// the same setCtl / setStereoSeparation / setPitch / setTempo
-			// messages regardless of engine; libtfmx doesn't have equivalents
-			// (or they map differently and need explicit feature work).
+			// the same setCtl / setPitch / setTempo messages regardless of
+			// engine; libtfmx doesn't have equivalents.
 			case 'setCtl':
-			case 'setStereoSeparation':
 			case 'setPitch':
 			case 'setTempo':
 			case 'setOrderRow':
 				break
+			// Store the value for application on the NEXT track. libtfmx's
+			// only stereo control is the `panning` argument to
+			// tfx_mixer_init, called once per track — there's no runtime
+			// setter exposed in the C wrapper. Mid-track slider drags
+			// record the value but don't affect the currently-playing
+			// track. The next tfx_mixer_init picks up this.config.stereoSeparation.
+			case 'setStereoSeparation': {
+				const n = Number.isFinite(v) ? Math.max(0, Math.min(100, Math.trunc(v))) : 100
+				this.config.stereoSeparation = n
+				break
+			}
 			default:
 				console.log('[tfmx-processor] unknown message', msg.data)
 		}
@@ -312,11 +321,16 @@ class TFX extends AudioWorkletProcessor {
 			return
 		}
 
+		// Map libopenmpt-style stereoSeparation (0=mono, 100=full stereo)
+		// to libtfmx panning (50=mono, 100=full stereo, 0=mirrored stereo).
+		// We only ever produce values in [50..100] — the mirrored-stereo
+		// half of libtfmx's range isn't reachable from the slider, by design.
+		const sep = Math.max(0, Math.min(100, this.config.stereoSeparation))
+		const tfmxPanning = 50 + Math.round(sep / 2)
 		M.ccall('tfx_mixer_init', null,
 			['number', 'number', 'number', 'number', 'number', 'number'],
 			// freq, bits, channels, zero-sample, panning
-			// panning=100 → full stereo per libtfmx's API doc
-			[this.decoder, sampleRate, 16, 2, 0, 100])
+			[this.decoder, sampleRate, 16, 2, 0, tfmxPanning])
 
 		this.songIndex = 0
 		this.currentMs = 0

@@ -606,9 +606,17 @@ export class AudioPlayer {
     if (this.ahxNode) {
       this.ahxNode.port.postMessage({ cmd: "setStereoSeparation", val: value });
     }
-    // TFMX: still not forwarded. libtfmx uses a different scale (100=full
-    // stereo / 50=mono) and its worklet does not implement the control.
-    // Forward only when libtfmx separation is actually wired up.
+    // TFMX: store in tfmxConfig + forward to the worklet. The worklet
+    // records the value but cannot apply it to the running track —
+    // libtfmx's only stereo control is `tfx_mixer_init`'s panning arg,
+    // which is called once per track. The next track picks up the new
+    // value via tfx_mixer_init's panning argument (mapped 0..100 →
+    // libtfmx's 50..100 in the worklet). Slider drag during a TFMX
+    // track is "best-effort, applied on next track" by design.
+    this.tfmxConfig = { ...this.tfmxConfig, stereoSeparation: value };
+    if (this.tfmxNode) {
+      this.tfmxNode.port.postMessage({ cmd: "setStereoSeparation", val: value });
+    }
   }
 
   selectSubsong(index: number): void {

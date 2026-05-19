@@ -1207,6 +1207,11 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
               amigaModel,
               setAmigaModel,
               activeEngine,
+              // Lower-cased + trimmed at the caller so SoundPane can
+              // compare against "mod" without scattering .toLowerCase()
+              // across helpers. libopenmpt occasionally returns padded
+              // type strings; trim() guards against that.
+              trackType: metaData.type?.trim().toLowerCase(),
               stereoSeparation,
               setStereoSeparation: (val) => {
                 setStereoSeparation(val);
