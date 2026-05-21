@@ -21,3 +21,10 @@ updates:
     commit-message:
       prefix: chore(deps)
     open-pull-requests-limit: 5
+    ignore:
+      # eslint-config-next@16.x bundles eslint-plugin-react@7.37.x and
+      # eslint-plugin-jsx-a11y@6.10.x, neither of which supports ESLint 10
+      # (removed context.getFilename API). Re-enable once upstream catches up.
+      - dependency-name: eslint
+        update-types:
+          - version-update:semver-major
