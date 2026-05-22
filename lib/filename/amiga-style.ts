@@ -27,6 +27,7 @@ const NATIVE_PREFIX_TABLE: Readonly<Record<string, string>> = Object.freeze({
   ".okt": "okt.",
   ".ahx": "ahx.",
   ".thx": "ahx.",
+  ".amf": "amf.",
 });
 
 // "Amiga everywhere" mode: native table plus PC-era trackers. Each PC
@@ -56,6 +57,7 @@ const PREFIX_ALIAS_TABLE: Readonly<Record<string, string>> = Object.freeze({
   "okt.": "okt.",
   "ahx.": "ahx.",
   "thx.": "ahx.",
+  "amf.": "amf.",
   "xm.": "xm.",
   "it.": "it.",
   "s3m.": "s3m.",
