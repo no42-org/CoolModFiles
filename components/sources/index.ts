@@ -24,6 +24,7 @@ export const MODULE_EXTENSIONS = [
   ".med",
   ".okt",
   ".ult",
+  ".amf",
 ] as const;
 
 // AHX/THX extensions, routed through the AHX engine. The engine itself

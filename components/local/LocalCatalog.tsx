@@ -104,8 +104,8 @@ function LocalCatalog({
       >
         <div>Drop MOD, AHX, or TFMX files here</div>
         <div className={styles.dropHint}>
-          .mod .xm .it .s3m .mptm .stm .mtm .669 .med .okt .ult · .ahx .thx ·
-          tfx+sam · mdat+smpl
+          .mod .xm .it .s3m .mptm .stm .mtm .669 .med .okt .ult .amf · .ahx
+          .thx · tfx+sam · mdat+smpl
         </div>
         <button
           className={styles.pickButton}

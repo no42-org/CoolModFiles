@@ -21,7 +21,7 @@ The programmer friends' idea, unfortunately, was beaten by [modarchive.org](http
 
 CoolModFiles plays three families of Amiga music:
 
-- **Module files** (`.mod`, `.xm`, `.it`, `.s3m`, `.mptm`, `.stm`, `.mtm`, `.669`, `.med`, `.okt`, `.ult`) through [libopenmpt](https://lib.openmpt.org/libopenmpt/) — available from all sources (Mod Archive, Library, Local drop).
+- **Module files** (`.mod`, `.xm`, `.it`, `.s3m`, `.mptm`, `.stm`, `.mtm`, `.669`, `.med`, `.okt`, `.ult`, `.amf`) through [libopenmpt](https://lib.openmpt.org/libopenmpt/) — available from all sources (Mod Archive, Library, Local drop). `.amf` covers both the Asylum Music Format V1.0 (Amiga) and DSMI's Advanced Module Format (PC); libopenmpt distinguishes them by content.
 - **AHX / THX** (`.ahx`, `.thx`) — Dexter & Pink of Abyss' synth-based Amiga tracker from 1992 — through [ahx2play](https://github.com/8bitbubsy/ahx2play). Available from **Mod Archive** (~1,000 modules in the `.ahx` catalogue), **Library**, and **Local drop**. The engine is selected automatically by magic-byte sniff, so files reaching the player through any source route correctly.
 - **TFMX** (Chris Hülsbeck / Jochen Hippel two-file Amiga game-music format, e.g. Apidya, Turrican) through [libtfmxaudiodecoder](https://github.com/mschwendt/libtfmxaudiodecoder) — available from **Library** and **Local drop**. Pairs are recognised across three naming conventions: `*.tfx + *.sam`, `mdat.* + smpl.*`, or `*.mdat + *.smpl`. Both halves must be present together; the catalog (Library or Local) surfaces each pair as a single row.
 
