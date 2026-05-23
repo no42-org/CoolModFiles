@@ -7,6 +7,7 @@ import { renderToString } from "react-dom/server";
 import {
   computeAmigaDisabled,
   computeAmigaHint,
+  computeStereoDisabled,
 } from "./SoundPane";
 
 describe("computeAmigaDisabled", () => {
@@ -106,5 +107,34 @@ describe("computeAmigaHint", () => {
     // engine-specific copy still wins.
     expect(hintText("ahx", "xm")).toContain("ahx2play");
     expect(hintText("tfmx", "xm")).toContain("libtfmx");
+  });
+
+  it("tfmx hint covers both Amiga emulation and stereo separation", () => {
+    // The TFMX engine cannot honour mid-track stereo separation
+    // changes (libtfmx's only stereo control is `tfx_mixer_init`'s
+    // panning arg, applied once per track load). The hint signals
+    // both limitations in one banner above the Amiga emulation
+    // section.
+    const txt = hintText("tfmx", undefined);
+    expect(txt).toContain("Amiga emulation");
+    expect(txt).toContain("stereo separation");
+  });
+});
+
+describe("computeStereoDisabled", () => {
+  it("no track loaded → slider live", () => {
+    expect(computeStereoDisabled(undefined)).toBe(false);
+  });
+
+  it("libopenmpt → slider live", () => {
+    expect(computeStereoDisabled("libopenmpt")).toBe(false);
+  });
+
+  it("ahx → slider live (ahx2play honours stereo natively)", () => {
+    expect(computeStereoDisabled("ahx")).toBe(false);
+  });
+
+  it("tfmx → slider disabled (libtfmx only sets stereo at track load)", () => {
+    expect(computeStereoDisabled("tfmx")).toBe(true);
   });
 });

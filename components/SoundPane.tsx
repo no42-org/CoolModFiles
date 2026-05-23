@@ -110,8 +110,9 @@ export function computeAmigaHint(
     return {
       copy: (
         <>
-          Amiga emulation has no effect for TFMX tracks — they render
-          through libtfmx&apos;s own playback engine.
+          Amiga emulation and stereo separation have no effect for TFMX
+          tracks — they render through libtfmx&apos;s own playback
+          engine, which only accepts a panning value at track load.
         </>
       ),
     };
@@ -133,6 +134,20 @@ export function computeAmigaHint(
   return null;
 }
 
+/**
+ * The stereo separation slider is disabled when the active engine is
+ * TFMX. libtfmx's only stereo control is the `panning` argument to
+ * `tfx_mixer_init`, which runs once per track load — mid-track slider
+ * changes have no audible effect. Disabling the slider is the honest
+ * UI signal.
+ *
+ * libopenmpt and AHX both honour stereo separation natively at the
+ * 0..100 percentage scale, so the slider stays live for them.
+ */
+export function computeStereoDisabled(engine: EngineKind | undefined): boolean {
+  return engine === "tfmx";
+}
+
 function SoundPane({
   amigaModel,
   setAmigaModel,
@@ -145,6 +160,7 @@ function SoundPane({
 }: SoundPaneProps) {
   const amigaDisabled = computeAmigaDisabled(activeEngine, trackType);
   const amigaHint = computeAmigaHint(activeEngine, trackType);
+  const stereoDisabled = computeStereoDisabled(activeEngine);
 
   return (
     <div className={styles.wrapper}>
@@ -179,7 +195,9 @@ function SoundPane({
 
       <section className={styles.stereoSection}>
         <h2 className={styles.sectionHeading}>Stereo separation</h2>
-        <div className={styles.stereoRow}>
+        <div
+          className={`${styles.stereoRow} ${stereoDisabled ? styles.stereoRowDisabled : ""}`}
+        >
           <div className={styles.stereoSliderWrap}>
             <Slider
               railStyle={{ backgroundColor: "white", height: 6 }}
@@ -192,7 +210,9 @@ function SoundPane({
               max={100}
               step={1}
               value={stereoSeparation}
+              disabled={stereoDisabled}
               onChange={(val) => {
+                if (stereoDisabled) return;
                 if (typeof val !== "number") return;
                 setStereoSeparation(val);
               }}
