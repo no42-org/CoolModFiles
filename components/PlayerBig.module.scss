@@ -55,8 +55,24 @@
 
 .banner {
   width: 115px;
-  align-self: center;
-  margin: 15px 0 15px 0;
+  flex-shrink: 0;
+}
+
+.discRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin: 15px 0;
+}
+
+.analyzerWrap {
+  flex: 1;
+  // Disc gif is 163×239 intrinsic; at width:115 it renders ~169px tall.
+  // Match that so the canvas and disc share a baseline. The mobile
+  // override below keeps the same ratio at the 80px disc width.
+  height: 169px;
+  min-width: 0;
 }
 
 .wheader {
@@ -350,6 +366,10 @@
   }
   .banner {
     width: 80px;
+  }
+  .analyzerWrap {
+    // Disc at width:80 renders ~117px tall (163×239 → 80×117).
+    height: 117px;
   }
   .actionbtn {
     height: 90px;

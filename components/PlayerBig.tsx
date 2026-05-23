@@ -18,6 +18,7 @@ import {
   VolumeIcon,
 } from "../icons";
 import LoadingState from "./LoadingState";
+import SpectrumAnalyzer from "./SpectrumAnalyzer";
 import { showToast } from "../utils";
 import type { FavoriteTrack } from "./LikedMod";
 import type { AudioPlayer } from "../lib/audio-player";
@@ -169,11 +170,6 @@ function PlayerBig({
                 />
               )}
             </div>
-            <img
-              className={styles.banner}
-              src={`/images/disc_${isPlay ? "anim" : "idle"}.gif`}
-              alt="anim"
-            />
             <div className={styles.shareWrap}>
               <ShareIcon
                 height="30"
@@ -189,6 +185,16 @@ function PlayerBig({
               <div className={dropDownClass}>
                 <CodeIcon height="30" width="30" onClick={() => copyEmbed()} />
               </div>
+            </div>
+          </div>
+          <div className={styles.discRow}>
+            <img
+              className={styles.banner}
+              src={`/images/disc_${isPlay ? "anim" : "idle"}.gif`}
+              alt="anim"
+            />
+            <div className={styles.analyzerWrap}>
+              <SpectrumAnalyzer analyser={player?.analyser ?? null} />
             </div>
           </div>
           <h2 className={styles.title}>{title ? title : "[No Title]"}</h2>

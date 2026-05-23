@@ -64,6 +64,11 @@ function isTfmxPair(input: unknown): input is TfmxPair {
 export class AudioPlayer {
   context: AudioContext;
   gain: GainNode;
+  // Master-mix AnalyserNode for visualisation (e.g. SpectrumAnalyzer).
+  // Connected as a sibling fan-out off `gain` — observation-only, never
+  // routed to `destination`. Downstream of the master gain so the
+  // visualisation reflects the user's volume setting.
+  analyser: AnalyserNode;
 
   // Public state surface — kept in sync with whichever engine is active.
   // Player.tsx and PlayerMin read these from polled intervals.
@@ -131,6 +136,14 @@ export class AudioPlayer {
     this.chiptune = new ChiptuneJsPlayer(cfg);
     this.context = this.chiptune.context;
     this.gain = this.chiptune.gain;
+    // Sibling fan-out: gain → destination (owned by ChiptuneJsPlayer)
+    // AND gain → analyser. In-path insertion would require modifying
+    // ChiptuneJsPlayer (vendored) or post-construction reconnection;
+    // fan-out is local and audio-graph-equivalent.
+    this.analyser = this.context.createAnalyser();
+    this.analyser.fftSize = 512;
+    this.analyser.smoothingTimeConstant = 0.8;
+    this.gain.connect(this.analyser);
     // Strip the AudioContext before stashing for postMessage. Structured
     // clone rejects AudioContext; the only consumer of tfmxConfig is the
     // worklet's {cmd:'config'} message, which doesn't need it anyway.
@@ -685,6 +698,7 @@ export class AudioPlayer {
     this.ahxReady = undefined;
     this.pendingStopAck = undefined;
     this.handlers = [];
+    try { this.analyser.disconnect(); } catch { /* not connected */ }
     this.chiptune.stop();
   }
 

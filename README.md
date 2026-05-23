@@ -88,6 +88,12 @@ underlying file shapes (`*.tfx + *.sam`, `mdat.* + smpl.*`, `*.mdat +
 the canonical on-disk filename, and hovering a row reveals the on-disk
 basename in a tooltip so it remains copyable for search/share.
 
+## Spectrum analyzer
+
+The expanded player shows a 20-bar spectrum analyzer next to the disc
+icon, driven by the master mix so it reacts uniformly across libopenmpt,
+AHX, and TFMX playback.
+
 ## Development
 
 ```bash
