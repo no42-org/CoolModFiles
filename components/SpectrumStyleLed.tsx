@@ -27,8 +27,11 @@ const DB_LABELS_MOBILE = [30, 5];
 const DB_MAX = 30;
 
 const BG = "#000000";
-const TILE_FILL = "#00b8ff";
-const CHROME_TEXT = "#00b8ff";
+// Brighter than the app's canonical #00b8ff cyan — gives the LED tiles
+// and legend the "lit phosphor" look the SH-8055 reference has. Same
+// hue family, just higher luminance.
+const TILE_FILL = "#7ad5ff";
+const CHROME_TEXT = "#7ad5ff";
 const GRID_LINE = "rgba(143, 196, 224, 0.10)";
 
 const TILE_HEIGHT_PX = 3;
