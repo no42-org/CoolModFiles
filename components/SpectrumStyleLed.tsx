@@ -22,8 +22,7 @@ if (HZ_LABELS.length !== NUM_BANDS) {
   );
 }
 
-const DB_LABELS_DESKTOP = [30, 25, 20, 15, 10, 5];
-const DB_LABELS_MOBILE = [30, 5];
+const DB_LABELS = [30, 25, 20, 15, 10, 5];
 const DB_MAX = 30;
 
 const BG = "#000000";
@@ -48,12 +47,11 @@ const LEGEND_GLOW_BLUR_PX = 6;
 // glow's radius — more intense, not just larger.
 const GLOW_PASSES = 2;
 
-const CHROME_TOP_DESKTOP_PX = 38;
+const CHROME_TOP_PX = 38;
 const CHROME_BOTTOM_PX = 14;
 const CHROME_SIDE_PX = 28;
 const HZ_PREFIX_PX = 22;
 const TOP_HZ_OFFSET_PX = 14; // Hz/dB-caption baseline this far above bar area top
-const MOBILE_BREAKPOINT_PX = 600;
 
 const FONT_LEGEND_PRIMARY =
   "italic bold 12px ui-sans-serif, system-ui, sans-serif";
@@ -73,25 +71,6 @@ export default function SpectrumStyleLed({
   dimensionsRef,
 }: Props) {
   const peaksRef = React.useRef<number[]>(new Array(NUM_BANDS).fill(0));
-  const isMobileRef = React.useRef<boolean>(false);
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (typeof window.matchMedia !== "function") return;
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`);
-    isMobileRef.current = mql.matches;
-    const onChange = (e: MediaQueryListEvent) => {
-      isMobileRef.current = e.matches;
-    };
-    // Safari < 14 lacks addEventListener on MediaQueryList; fall back to
-    // the deprecated addListener which is still defined on those engines.
-    if (typeof mql.addEventListener === "function") {
-      mql.addEventListener("change", onChange);
-      return () => mql.removeEventListener("change", onChange);
-    }
-    mql.addListener(onChange);
-    return () => mql.removeListener(onChange);
-  }, []);
 
   React.useEffect(() => {
     if (!analyser) return;
@@ -107,8 +86,6 @@ export default function SpectrumStyleLed({
       const { width: w, height: h } = dimensionsRef.current;
       if (w === 0 || h === 0) return;
 
-      const isMobile = isMobileRef.current;
-
       // Recreate the buffer if the analyser's bin count drifts (fftSize
       // was reconfigured elsewhere). Otherwise getByteFrequencyData would
       // overwrite only a prefix and leave stale tail data.
@@ -122,7 +99,11 @@ export default function SpectrumStyleLed({
       ctx.fillStyle = BG;
       ctx.fillRect(0, 0, w, h);
 
-      const chromeTop = isMobile ? 0 : CHROME_TOP_DESKTOP_PX;
+      // Top chrome is rendered at the same height on every viewport —
+      // the wrap collapses to the disc-icon height (~117px on mobile)
+      // and the bar area compresses to fit. Keeps the SH-8055 identity
+      // intact at every breakpoint.
+      const chromeTop = CHROME_TOP_PX;
       const barAreaTop = chromeTop;
       const barAreaBottom = h - CHROME_BOTTOM_PX;
       const barAreaLeft = CHROME_SIDE_PX;
@@ -138,8 +119,6 @@ export default function SpectrumStyleLed({
         Math.floor((barAreaH + TILE_GAP_PX) / tileSlot),
       );
 
-      const dbLabels = isMobile ? DB_LABELS_MOBILE : DB_LABELS_DESKTOP;
-
       const bandSlot = (barAreaW - BAND_GAP_PX * (NUM_BANDS - 1)) / NUM_BANDS;
       const bandWidth = Math.max(1, bandSlot);
 
@@ -147,7 +126,7 @@ export default function SpectrumStyleLed({
       ctx.strokeStyle = GRID_LINE;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      for (const db of dbLabels) {
+      for (const db of DB_LABELS) {
         const t = 1 - db / DB_MAX;
         const y = Math.round(barAreaTop + t * barAreaH) + 0.5;
         ctx.moveTo(barAreaLeft, y);
@@ -181,43 +160,41 @@ export default function SpectrumStyleLed({
       const drawGlowingChromeAndTiles = () => {
         ctx.fillStyle = CHROME_TEXT;
 
-        if (!isMobile) {
-          // Top legend: mixed weight — "12 channel" italic bold,
-          // "real time spectrum analyzer" italic regular. Draws with the
-          // tighter LEGEND_GLOW_BLUR_PX for a brighter, more concentrated
-          // halo; restored to TILE_GLOW_BLUR_PX afterwards for the rest
-          // of the chrome.
-          ctx.shadowBlur = LEGEND_GLOW_BLUR_PX;
-          ctx.textBaseline = "alphabetic";
-          ctx.textAlign = "left";
-          ctx.font = FONT_LEGEND_PRIMARY;
-          ctx.fillText("12 channel", barAreaLeft, 13);
-          ctx.textAlign = "right";
-          ctx.font = FONT_LEGEND_SECONDARY;
-          ctx.fillText("real time spectrum analyzer", barAreaRight, 13);
-          ctx.shadowBlur = TILE_GLOW_BLUR_PX;
+        // Top legend: mixed weight — "12 channel" italic bold,
+        // "real time spectrum analyzer" italic regular. Draws with the
+        // tighter LEGEND_GLOW_BLUR_PX for a brighter, more concentrated
+        // halo; restored to TILE_GLOW_BLUR_PX afterwards for the rest
+        // of the chrome.
+        ctx.shadowBlur = LEGEND_GLOW_BLUR_PX;
+        ctx.textBaseline = "alphabetic";
+        ctx.textAlign = "left";
+        ctx.font = FONT_LEGEND_PRIMARY;
+        ctx.fillText("12 channel", barAreaLeft, 13);
+        ctx.textAlign = "right";
+        ctx.font = FONT_LEGEND_SECONDARY;
+        ctx.fillText("real time spectrum analyzer", barAreaRight, 13);
+        ctx.shadowBlur = TILE_GLOW_BLUR_PX;
 
-          // Top Hz row (no "(Hz)" prefix — the bottom row carries it; here
-          // the left margin belongs to the "dB" caption).
-          ctx.font = FONT_HZ;
-          ctx.textAlign = "center";
-          for (let i = 0; i < NUM_BANDS; i++) {
-            const x =
-              barAreaLeft + i * (bandWidth + BAND_GAP_PX) + bandWidth / 2;
-            ctx.fillText(HZ_LABELS[i], x, chromeTop - TOP_HZ_OFFSET_PX);
-          }
-
-          // "dB" caption — sits in the top-left margin, inline with the
-          // top Hz row, right-aligned to the dB column.
-          ctx.font = FONT_DB;
-          ctx.textAlign = "right";
-          ctx.fillText("dB", barAreaLeft - 4, chromeTop - TOP_HZ_OFFSET_PX);
+        // Top Hz row (no "(Hz)" prefix — the bottom row carries it; here
+        // the left margin belongs to the "dB" caption).
+        ctx.font = FONT_HZ;
+        ctx.textAlign = "center";
+        for (let i = 0; i < NUM_BANDS; i++) {
+          const x =
+            barAreaLeft + i * (bandWidth + BAND_GAP_PX) + bandWidth / 2;
+          ctx.fillText(HZ_LABELS[i], x, chromeTop - TOP_HZ_OFFSET_PX);
         }
+
+        // "dB" caption — sits in the top-left margin, inline with the
+        // top Hz row, right-aligned to the dB column.
+        ctx.font = FONT_DB;
+        ctx.textAlign = "right";
+        ctx.fillText("dB", barAreaLeft - 4, chromeTop - TOP_HZ_OFFSET_PX);
 
         // dB labels on both sides, aligned to grid tick y
         ctx.font = FONT_DB;
         ctx.textBaseline = "middle";
-        for (const db of dbLabels) {
+        for (const db of DB_LABELS) {
           const t = 1 - db / DB_MAX;
           const y = barAreaTop + t * barAreaH;
           ctx.textAlign = "right";
