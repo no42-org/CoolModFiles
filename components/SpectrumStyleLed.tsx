@@ -33,7 +33,7 @@ const TILE_FILL = "#7ad5ff";
 const CHROME_TEXT = "#7ad5ff";
 const GRID_LINE = "rgba(143, 196, 224, 0.10)";
 
-const TILE_HEIGHT_PX = 3;
+const TILE_HEIGHT_PX = 2;
 const TILE_GAP_PX = 2;
 const BAND_GAP_PX = 4;
 const PEAK_DECAY_TILES_PER_FRAME = 0.08;
