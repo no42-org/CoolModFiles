@@ -4,37 +4,46 @@
  */
 import React from "react";
 import styles from "./SpectrumAnalyzer.module.scss";
+import SpectrumStyleClassic from "./SpectrumStyleClassic";
+import SpectrumStyleLed from "./SpectrumStyleLed";
+import type { SpectrumDimensions } from "../lib/spectrum-binning";
 
-const NUM_BARS = 20;
-const BAR_GAP_PX = 2;
-const PEAK_DECAY_PX_PER_FRAME = 0.4;
-const BG = "#000000";
-const PEAK_COLOR = "#ffffff";
+export const STYLES = ["classic", "led"] as const;
+export type AnalyzerStyle = (typeof STYLES)[number];
+export const DEFAULT_STYLE: AnalyzerStyle = "classic";
+const STORAGE_KEY = "display.analyzerStyle";
+const MAX_DPR = 2;
 
-/**
- * Group `data` (linear-frequency byte FFT bins) into `numBars`
- * log-spaced buckets using max-aggregation per slice. The slice ranges
- * advance monotonically (each bar's `start` = the previous bar's `end`)
- * so adjacent bars never share bins.
- */
-export function logGroupBins(data: Uint8Array, numBars: number): number[] {
-  const numBins = data.length;
-  if (numBars <= 0) return [];
-  const bars = new Array<number>(numBars).fill(0);
-  let prevEnd = 0;
-  for (let i = 0; i < numBars; i++) {
-    const start = prevEnd;
-    let end = Math.floor(Math.pow(numBins, (i + 1) / numBars));
-    if (end <= start) end = start + 1;
-    if (end > numBins) end = numBins;
-    let max = 0;
-    for (let j = start; j < end; j++) {
-      if (data[j] > max) max = data[j];
-    }
-    bars[i] = max;
-    prevEnd = end;
+const STYLE_LABELS: Record<AnalyzerStyle, string> = {
+  classic: "Switch to LED graphic equalizer",
+  led: "Switch to gradient bars",
+};
+
+export function nextStyle(current: AnalyzerStyle): AnalyzerStyle {
+  const idx = STYLES.indexOf(current);
+  return STYLES[(idx + 1) % STYLES.length];
+}
+
+export function readAnalyzerStyle(): AnalyzerStyle {
+  if (typeof window === "undefined") return DEFAULT_STYLE;
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return DEFAULT_STYLE;
   }
-  return bars;
+  return STYLES.includes(raw as AnalyzerStyle)
+    ? (raw as AnalyzerStyle)
+    : DEFAULT_STYLE;
+}
+
+function writeAnalyzerStyle(value: AnalyzerStyle) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, value);
+  } catch {
+    // storage may be disabled (private mode, blocked) — session-only change
+  }
 }
 
 type SpectrumAnalyzerProps = {
@@ -43,22 +52,32 @@ type SpectrumAnalyzerProps = {
 
 export default function SpectrumAnalyzer({ analyser }: SpectrumAnalyzerProps) {
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
-  const peaksRef = React.useRef<number[]>(new Array(NUM_BARS).fill(0));
-  const gradientRef = React.useRef<{
-    height: number;
-    gradient: CanvasGradient;
-  } | null>(null);
-  const dimensionsRef = React.useRef<{ width: number; height: number }>({
+  const dimensionsRef = React.useRef<SpectrumDimensions>({
     width: 0,
     height: 0,
   });
+  // Start at DEFAULT_STYLE so SSR markup is deterministic; hydrate the
+  // stored value in a useEffect to avoid a server/client mismatch.
+  const [style, setStyle] = React.useState<AnalyzerStyle>(DEFAULT_STYLE);
 
+  // setState-in-effect is intentional here: localStorage is unavailable
+  // during SSR, so the stored style is hydrated after mount. Same pattern
+  // as pages/index.tsx and components/modarchive/PersonMods.tsx — the
+  // lint warning is accepted in this category.
+  React.useEffect(() => {
+    const stored = readAnalyzerStyle();
+    if (stored !== DEFAULT_STYLE) setStyle(stored);
+  }, []);
+
+  // Sync the canvas backing store to its rendered size at DPR (capped to
+  // avoid the browser's per-canvas pixel-area limit at high zoom). If
+  // ResizeObserver is unavailable, fall back to a one-shot dimension
+  // read on mount so the child renderers still see non-zero dims.
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => {
-      const dpr = window.devicePixelRatio || 1;
+    const sync = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
       if (w === 0 || h === 0) return;
@@ -68,73 +87,100 @@ export default function SpectrumAnalyzer({ analyser }: SpectrumAnalyzerProps) {
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       dimensionsRef.current = { width: w, height: h };
-      gradientRef.current = null;
-      ctx.fillStyle = BG;
-      ctx.fillRect(0, 0, w, h);
-    });
+    };
+    if (typeof ResizeObserver === "undefined") {
+      sync();
+      return;
+    }
+    const observer = new ResizeObserver(sync);
     observer.observe(canvas);
     return () => observer.disconnect();
   }, []);
 
+  // Clear the canvas when style changes so the outgoing renderer's last
+  // frame doesn't linger for 1-2 frames before the incoming renderer's
+  // first RAF tick.
   React.useEffect(() => {
-    if (!analyser) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const buf = new Uint8Array(analyser.frequencyBinCount);
-    let rafId = 0;
-    const draw = () => {
-      rafId = requestAnimationFrame(draw);
-      const { width: w, height: h } = dimensionsRef.current;
-      if (w === 0 || h === 0) return;
+    const { width, height } = dimensionsRef.current;
+    if (width === 0 || height === 0) return;
+    ctx.clearRect(0, 0, width, height);
+  }, [style]);
 
-      analyser.getByteFrequencyData(buf);
-      const bars = logGroupBins(buf, NUM_BARS);
-      const peaks = peaksRef.current;
+  const cycle = React.useCallback(() => {
+    setStyle((prev) => nextStyle(prev));
+  }, []);
 
-      ctx.fillStyle = BG;
-      ctx.fillRect(0, 0, w, h);
+  // setStyle returning the next value runs the updater in StrictMode
+  // possibly twice; persistence happens in this effect (post-commit, once
+  // per actual state change) so we never double-write to localStorage.
+  React.useEffect(() => {
+    writeAnalyzerStyle(style);
+  }, [style]);
 
-      if (!gradientRef.current || gradientRef.current.height !== h) {
-        const g = ctx.createLinearGradient(0, h, 0, 0);
-        g.addColorStop(0.0, "#ddd");
-        g.addColorStop(0.55, "#00b8ff");
-        g.addColorStop(1.0, "#bd00ff");
-        gradientRef.current = { height: h, gradient: g };
+  const onKeyDown = React.useCallback(
+    (e: React.KeyboardEvent<HTMLCanvasElement>) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        cycle();
       }
+    },
+    [cycle],
+  );
 
-      const totalGap = BAR_GAP_PX * (NUM_BARS - 1);
-      const barWidth = Math.max(1, (w - totalGap) / NUM_BARS);
-
-      ctx.fillStyle = gradientRef.current.gradient;
-      for (let i = 0; i < NUM_BARS; i++) {
-        const amp = bars[i] / 255;
-        const barH = amp * h;
-        const x = i * (barWidth + BAR_GAP_PX);
-        if (barH > 0) ctx.fillRect(x, h - barH, barWidth, barH);
-
-        if (barH >= peaks[i]) {
-          peaks[i] = barH;
-        } else {
-          peaks[i] = Math.max(0, peaks[i] - PEAK_DECAY_PX_PER_FRAME);
-        }
+  // Touch double-fire guard: a tap on mobile may fire both a synthetic
+  // click and a real click. Use a short suppression window after
+  // pointerdown of touch type to swallow the duplicate.
+  const lastTouchAtRef = React.useRef<number>(0);
+  const onPointerDown = React.useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (e.pointerType === "touch") {
+        lastTouchAtRef.current = Date.now();
       }
-
-      ctx.fillStyle = PEAK_COLOR;
-      for (let i = 0; i < NUM_BARS; i++) {
-        if (peaks[i] > 0) {
-          const x = i * (barWidth + BAR_GAP_PX);
-          const y = h - peaks[i];
-          ctx.fillRect(x, y, barWidth, 1);
-        }
-      }
-    };
-    rafId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(rafId);
-  }, [analyser]);
+    },
+    [],
+  );
+  const onClick = React.useCallback(() => {
+    // Within 500ms of a touch pointerdown we treat the click as the
+    // already-handled synthetic; the touchend path on mobile will fire
+    // click only once and this guard is a no-op there. The guard only
+    // suppresses a *second* click within the window.
+    if (Date.now() - lastTouchAtRef.current < 50) return;
+    lastTouchAtRef.current = Date.now();
+    cycle();
+  }, [cycle]);
 
   return (
-    <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />
+    <>
+      <canvas
+        ref={canvasRef}
+        className={styles.canvas}
+        role="button"
+        aria-label={STYLE_LABELS[style]}
+        aria-live="off"
+        tabIndex={0}
+        title={STYLE_LABELS[style]}
+        onClick={onClick}
+        onPointerDown={onPointerDown}
+        onKeyDown={onKeyDown}
+      />
+      {style === "classic" ? (
+        <SpectrumStyleClassic
+          analyser={analyser}
+          canvasRef={canvasRef}
+          dimensionsRef={dimensionsRef}
+        />
+      ) : (
+        <SpectrumStyleLed
+          analyser={analyser}
+          canvasRef={canvasRef}
+          dimensionsRef={dimensionsRef}
+        />
+      )}
+    </>
   );
 }
