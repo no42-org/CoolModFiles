@@ -90,9 +90,15 @@ basename in a tooltip so it remains copyable for search/share.
 
 ## Spectrum analyzer
 
-The expanded player shows a 20-bar spectrum analyzer next to the disc
-icon, driven by the master mix so it reacts uniformly across libopenmpt,
-AHX, and TFMX playback.
+The expanded player shows a spectrum analyzer next to the disc icon,
+driven by the master mix so it reacts uniformly across libopenmpt, AHX,
+and TFMX playback. Two visual styles ship: **gradient bars** (the
+default — 20 log-grouped bars in the app's white→cyan→magenta palette
+with a peak-hold line) and an **LED graphic equalizer** modelled on the
+Technics SH-8055 12-channel real-time spectrum analyzer (12 cyan tile
+bands with dB scale, dual Hz rows, `(Hz)` prefix, and faint grid lines). Click the analyzer canvas (or focus it and press
+Enter / Space) to cycle between styles; the choice persists across
+sessions in `localStorage`.
 
 ## Development
 

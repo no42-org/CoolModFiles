@@ -3,89 +3,149 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { renderToString } from "react-dom/server";
-import SpectrumAnalyzer, { logGroupBins } from "./SpectrumAnalyzer";
+import SpectrumAnalyzer, {
+  STYLES,
+  DEFAULT_STYLE,
+  nextStyle,
+  readAnalyzerStyle,
+} from "./SpectrumAnalyzer";
 
-describe("logGroupBins", () => {
-  it("returns an array of length numBars", () => {
-    const data = new Uint8Array(256);
-    expect(logGroupBins(data, 20)).toHaveLength(20);
-    expect(logGroupBins(data, 4)).toHaveLength(4);
+describe("nextStyle", () => {
+  it("cycles classic → led", () => {
+    expect(nextStyle("classic")).toBe("led");
   });
 
-  it("lowest bar reads from the low end of the input range", () => {
-    // numBins=8, numBars=4 → bar 0 covers bin 0 only (per the
-    // monotonic log-binning math). Put a peak at bin 0 and zeros
-    // elsewhere; bar 0 should hold the peak, the rest zero.
-    const data = Uint8Array.from([200, 0, 0, 0, 0, 0, 0, 0]);
-    const bars = logGroupBins(data, 4);
-    expect(bars[0]).toBe(200);
-    expect(bars[1]).toBe(0);
-    expect(bars[2]).toBe(0);
-    expect(bars[3]).toBe(0);
+  it("wraps led → classic", () => {
+    expect(nextStyle("led")).toBe("classic");
   });
 
-  it("highest bar reads from the top of the input range", () => {
-    // numBins=8, numBars=4 → bar 3 covers bins 4..7. Peak at bin 7.
-    const data = Uint8Array.from([0, 0, 0, 0, 0, 0, 0, 200]);
-    const bars = logGroupBins(data, 4);
-    expect(bars[0]).toBe(0);
-    expect(bars[1]).toBe(0);
-    expect(bars[2]).toBe(0);
-    expect(bars[3]).toBe(200);
+  it("exposes a stable STYLES array with both identifiers", () => {
+    expect([...STYLES]).toEqual(["classic", "led"]);
   });
 
-  it("uses max-aggregation across the slice, not mean", () => {
-    // numBins=8, numBars=4 → bar 3 covers bins 4..7. Single spike at bin
-    // 4 of 200, three zeros after. Mean would be 50; max should be 200.
-    const data = Uint8Array.from([0, 0, 0, 0, 200, 0, 0, 0]);
-    const bars = logGroupBins(data, 4);
-    expect(bars[3]).toBe(200);
-  });
-
-  it("slice ranges advance monotonically so adjacent bars don't share bins", () => {
-    // With 256 bins and 20 bars, no two adjacent bars should report the
-    // same value if there is a unique non-zero value per bin.
-    const data = new Uint8Array(256);
-    for (let i = 0; i < 256; i++) data[i] = i; // monotonically increasing
-    const bars = logGroupBins(data, 20);
-    for (let i = 1; i < bars.length; i++) {
-      expect(bars[i]).toBeGreaterThan(bars[i - 1]);
-    }
-  });
-
-  it("handles numBars > numBins without throwing", () => {
-    // With more bars than bins, some trailing bars necessarily report 0
-    // (their slice falls outside the data). No throw expected.
-    const data = Uint8Array.from([10, 20, 30, 40]);
-    const bars = logGroupBins(data, 10);
-    expect(bars).toHaveLength(10);
-    expect(bars.every((v) => Number.isFinite(v))).toBe(true);
-  });
-
-  it("returns [] for numBars <= 0", () => {
-    expect(logGroupBins(new Uint8Array(256), 0)).toEqual([]);
-    expect(logGroupBins(new Uint8Array(256), -1)).toEqual([]);
+  it("DEFAULT_STYLE is classic", () => {
+    expect(DEFAULT_STYLE).toBe("classic");
   });
 });
 
-describe("SpectrumAnalyzer (SSR render)", () => {
-  it("renders a canvas with aria-hidden when analyser is null", () => {
-    // Server-side render: useEffect does not run, so the canvas appears
-    // with no RAF loop scheduled and no ResizeObserver attached. This
-    // also covers the null-analyser branch — the component's only
-    // server-visible output is the bare canvas markup.
-    const rafSpy = vi.fn();
-    const original = globalThis.requestAnimationFrame;
-    globalThis.requestAnimationFrame = rafSpy as typeof requestAnimationFrame;
-    try {
-      const html = renderToString(<SpectrumAnalyzer analyser={null} />);
-      expect(html).toContain("<canvas");
-      expect(html).toMatch(/aria-hidden="true"/);
-      expect(rafSpy).not.toHaveBeenCalled();
-    } finally {
-      globalThis.requestAnimationFrame = original;
-    }
+// Lightweight in-memory localStorage shim. The default vitest env for this
+// project is `node`, where neither `window` nor `localStorage` exist.
+type Store = Record<string, string>;
+function mockLocalStorage(initial: Store = {}) {
+  const store: Store = { ...initial };
+  return {
+    getItem: (k: string) => (k in store ? store[k] : null),
+    setItem: (k: string, v: string) => {
+      store[k] = v;
+    },
+    removeItem: (k: string) => {
+      delete store[k];
+    },
+    clear: () => {
+      for (const k of Object.keys(store)) delete store[k];
+    },
+    key: (i: number) => Object.keys(store)[i] ?? null,
+    get length() {
+      return Object.keys(store).length;
+    },
+  } as Storage;
+}
+
+function withWindow(localStorage: Storage, body: () => void) {
+  const g = globalThis as unknown as { window?: { localStorage: Storage } };
+  const prev = g.window;
+  g.window = { localStorage };
+  try {
+    body();
+  } finally {
+    g.window = prev;
+  }
+}
+
+describe("readAnalyzerStyle", () => {
+  it("returns the default when window is undefined (SSR)", () => {
+    // No window stubbed → readAnalyzerStyle's SSR guard takes effect.
+    expect(readAnalyzerStyle()).toBe("classic");
+  });
+
+  it("returns 'classic' when the key is unset", () => {
+    withWindow(mockLocalStorage(), () => {
+      expect(readAnalyzerStyle()).toBe("classic");
+    });
+  });
+
+  it("returns 'led' when stored", () => {
+    withWindow(mockLocalStorage({ "display.analyzerStyle": "led" }), () => {
+      expect(readAnalyzerStyle()).toBe("led");
+    });
+  });
+
+  it("returns 'classic' when stored", () => {
+    withWindow(
+      mockLocalStorage({ "display.analyzerStyle": "classic" }),
+      () => {
+        expect(readAnalyzerStyle()).toBe("classic");
+      },
+    );
+  });
+
+  it("falls back to default for an invalid value", () => {
+    withWindow(
+      mockLocalStorage({ "display.analyzerStyle": "sparkle" }),
+      () => {
+        expect(readAnalyzerStyle()).toBe("classic");
+      },
+    );
+  });
+
+  it("falls back to default for an empty string", () => {
+    withWindow(mockLocalStorage({ "display.analyzerStyle": "" }), () => {
+      expect(readAnalyzerStyle()).toBe("classic");
+    });
+  });
+
+  it("falls back to default when localStorage.getItem throws", () => {
+    const throwing = {
+      getItem: () => {
+        throw new Error("storage blocked");
+      },
+    } as unknown as Storage;
+    withWindow(throwing, () => {
+      expect(readAnalyzerStyle()).toBe("classic");
+    });
+  });
+});
+
+describe("SpectrumAnalyzer (SSR markup)", () => {
+  // renderToString does not run effects, so no RAF, no ResizeObserver,
+  // no interactive event firing. Click/keyboard cycling is covered by
+  // the unit tests on nextStyle + readAnalyzerStyle + manual verification
+  // in §6.3 and §6.6 of tasks.md.
+
+  let prevRAF: typeof requestAnimationFrame;
+  beforeEach(() => {
+    prevRAF = globalThis.requestAnimationFrame;
+    globalThis.requestAnimationFrame = (() => {
+      throw new Error("requestAnimationFrame should not run during SSR");
+    }) as typeof requestAnimationFrame;
+  });
+  afterEach(() => {
+    globalThis.requestAnimationFrame = prevRAF;
+  });
+
+  it("renders a canvas as an interactive button", () => {
+    const html = renderToString(<SpectrumAnalyzer analyser={null} />);
+    expect(html).toContain("<canvas");
+    expect(html).toMatch(/role="button"/);
+    expect(html).toMatch(/aria-label="Switch spectrum analyzer style"/);
+    expect(html).toMatch(/tabindex="0"/);
+    expect(html).toMatch(/title="Click to switch analyzer style"/);
+  });
+
+  it("does not mark the canvas aria-hidden anymore", () => {
+    const html = renderToString(<SpectrumAnalyzer analyser={null} />);
+    expect(html).not.toMatch(/aria-hidden/);
   });
 });

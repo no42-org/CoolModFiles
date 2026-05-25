@@ -45,8 +45,10 @@ test("spectrum analyzer: layout, idle state, canvas reacts to audio data", async
   const banner = page.locator("img[alt='anim']");
   await expect(banner).toBeVisible({ timeout: 30_000 });
 
-  // 3) Locate the analyzer canvas (aria-hidden, decorative).
-  const canvas = page.locator("canvas[aria-hidden='true']");
+  // 3) Locate the analyzer canvas (interactive button — clicking cycles
+  //    the active style; the canvas is the only role="button" canvas on
+  //    the surface).
+  const canvas = page.locator("canvas[role='button']");
   await expect(canvas).toHaveCount(1);
   await expect(canvas).toBeVisible();
 
