@@ -66,4 +66,11 @@ describe("logGroupBins", () => {
     expect(logGroupBins(new Uint8Array(256), 0)).toEqual([]);
     expect(logGroupBins(new Uint8Array(256), -1)).toEqual([]);
   });
+
+  it("returns [] for non-integer numBars without throwing", () => {
+    // `new Array(2.5)` throws RangeError; the guard short-circuits.
+    expect(logGroupBins(new Uint8Array(256), 2.5)).toEqual([]);
+    expect(logGroupBins(new Uint8Array(256), NaN)).toEqual([]);
+    expect(logGroupBins(new Uint8Array(256), Infinity)).toEqual([]);
+  });
 });

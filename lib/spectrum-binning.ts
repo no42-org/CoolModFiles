@@ -13,7 +13,7 @@ export type SpectrumDimensions = { width: number; height: number };
  */
 export function logGroupBins(data: Uint8Array, numBars: number): number[] {
   const numBins = data.length;
-  if (numBars <= 0) return [];
+  if (!Number.isInteger(numBars) || numBars <= 0) return [];
   const bars = new Array<number>(numBars).fill(0);
   let prevEnd = 0;
   for (let i = 0; i < numBars; i++) {

@@ -92,12 +92,13 @@ describe("readAnalyzerStyle", () => {
   });
 
   it("falls back to default for an invalid value", () => {
-    withWindow(
-      mockLocalStorage({ "display.analyzerStyle": "sparkle" }),
-      () => {
-        expect(readAnalyzerStyle()).toBe("classic");
-      },
-    );
+    const storage = mockLocalStorage({ "display.analyzerStyle": "sparkle" });
+    withWindow(storage, () => {
+      expect(readAnalyzerStyle()).toBe("classic");
+      // Spec scenario: "the invalid stored value is left untouched
+      // (no automatic cleanup)". Confirm the read path is non-mutating.
+      expect(storage.getItem("display.analyzerStyle")).toBe("sparkle");
+    });
   });
 
   it("falls back to default for an empty string", () => {
@@ -139,9 +140,20 @@ describe("SpectrumAnalyzer (SSR markup)", () => {
     const html = renderToString(<SpectrumAnalyzer analyser={null} />);
     expect(html).toContain("<canvas");
     expect(html).toMatch(/role="button"/);
-    expect(html).toMatch(/aria-label="Switch spectrum analyzer style"/);
     expect(html).toMatch(/tabindex="0"/);
-    expect(html).toMatch(/title="Click to switch analyzer style"/);
+  });
+
+  it("uses a dynamic aria-label reflecting the next style", () => {
+    // SSR initial state is DEFAULT_STYLE ("classic"); the label should
+    // describe the *target* style (the one a click would switch to).
+    const html = renderToString(<SpectrumAnalyzer analyser={null} />);
+    expect(html).toMatch(/aria-label="Switch to LED graphic equalizer"/);
+    expect(html).toMatch(/title="Switch to LED graphic equalizer"/);
+  });
+
+  it("marks the canvas aria-live=\"off\" to suppress AT live-region announcement", () => {
+    const html = renderToString(<SpectrumAnalyzer analyser={null} />);
+    expect(html).toMatch(/aria-live="off"/);
   });
 
   it("does not mark the canvas aria-hidden anymore", () => {

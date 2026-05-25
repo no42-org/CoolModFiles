@@ -34,13 +34,17 @@ export default function SpectrumStyleClassic({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const buf = new Uint8Array(analyser.frequencyBinCount);
+    let buf = new Uint8Array(analyser.frequencyBinCount);
     let rafId = 0;
     const draw = () => {
       rafId = requestAnimationFrame(draw);
       const { width: w, height: h } = dimensionsRef.current;
       if (w === 0 || h === 0) return;
 
+      // Recreate the buffer if fftSize was reconfigured upstream.
+      if (buf.length !== analyser.frequencyBinCount) {
+        buf = new Uint8Array(analyser.frequencyBinCount);
+      }
       analyser.getByteFrequencyData(buf);
       const bars = logGroupBins(buf, NUM_BARS);
       const peaks = peaksRef.current;
@@ -61,7 +65,7 @@ export default function SpectrumStyleClassic({
 
       ctx.fillStyle = gradientRef.current.gradient;
       for (let i = 0; i < NUM_BARS; i++) {
-        const amp = bars[i] / 255;
+        const amp = (bars[i] ?? 0) / 255;
         const barH = amp * h;
         const x = i * (barWidth + BAR_GAP_PX);
         if (barH > 0) ctx.fillRect(x, h - barH, barWidth, barH);
