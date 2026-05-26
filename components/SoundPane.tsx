@@ -12,7 +12,7 @@ type AmigaModel = "off" | "a500" | "a1200";
 // Mirror of EngineKind in lib/audio-player.ts. Duplicated here as a
 // type-only union (not an import) to keep SoundPane decoupled from the
 // audio-player module.
-type EngineKind = "libopenmpt" | "tfmx" | "ahx";
+type EngineKind = "libopenmpt" | "tfmx" | "ahx" | "pcm";
 
 type SoundPaneProps = {
   amigaModel: AmigaModel;
@@ -117,6 +117,17 @@ export function computeAmigaHint(
       ),
     };
   }
+  if (engine === "pcm") {
+    return {
+      copy: (
+        <>
+          Amiga emulation and stereo separation do not apply to
+          recordings — what you hear is the original stereo render. The
+          source module is no longer available.
+        </>
+      ),
+    };
+  }
   if (
     engine === "libopenmpt" &&
     type !== undefined &&
@@ -136,16 +147,18 @@ export function computeAmigaHint(
 
 /**
  * The stereo separation slider is disabled when the active engine is
- * TFMX. libtfmx's only stereo control is the `panning` argument to
- * `tfx_mixer_init`, which runs once per track load — mid-track slider
- * changes have no audible effect. Disabling the slider is the honest
- * UI signal.
+ * TFMX or PCM:
+ *   - TFMX: libtfmx's only stereo control is the `panning` argument to
+ *     `tfx_mixer_init`, which runs once per track load — mid-track
+ *     slider changes have no audible effect.
+ *   - PCM: recordings are pre-rendered stereo audio. Stereo separation
+ *     cannot be applied without DSP we deliberately don't ship.
  *
  * libopenmpt and AHX both honour stereo separation natively at the
  * 0..100 percentage scale, so the slider stays live for them.
  */
 export function computeStereoDisabled(engine: EngineKind | undefined): boolean {
-  return engine === "tfmx";
+  return engine === "tfmx" || engine === "pcm";
 }
 
 function SoundPane({

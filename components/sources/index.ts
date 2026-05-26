@@ -37,11 +37,24 @@ export const MODULE_EXTENSIONS = [
 // client catalogues AND the server-side endpoints transitively.
 export const AHX_EXTENSIONS = [".ahx", ".thx"] as const;
 
+// PCM recording extensions, routed through the native-decode adapter
+// in lib/audio-player.ts (HTMLAudioElement + MediaElementAudioSourceNode).
+// These are recordings of tracker modules whose original `.mod` is lost
+// — archival rescue per design.md in
+// openspec/changes/add-lost-module-recordings/. Engine dispatch is
+// content-sniffed via lib/recording-magic.ts at AudioPlayer.play(); the
+// extension allowlist only decides which files surface in catalogue
+// rows. Library + Local-drop only — Mod Archive does not host these.
+// Narrow allowlist (no .wav/.opus/.m4a) keeps the scope archival rather
+// than general audio.
+export const RECORDING_EXTENSIONS = [".mp3", ".ogg", ".flac"] as const;
+
 export function isModuleFile(filename: string): boolean {
   const lower = filename.toLowerCase();
   return (
     MODULE_EXTENSIONS.some((ext) => lower.endsWith(ext)) ||
-    AHX_EXTENSIONS.some((ext) => lower.endsWith(ext))
+    AHX_EXTENSIONS.some((ext) => lower.endsWith(ext)) ||
+    RECORDING_EXTENSIONS.some((ext) => lower.endsWith(ext))
   );
 }
 

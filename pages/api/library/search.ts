@@ -4,6 +4,10 @@
 // case-insensitive substring on the filename) or a TFMX pair (matched
 // by substring on the pair's user-facing base — NOT the on-disk
 // filename, per design D8).
+//
+// This endpoint does NOT honour the `excludeRecordings` query parameter
+// (see /api/library/random) — search is intent-driven and filtering by
+// default would surprise. Per add-lost-module-recordings Decision 14.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs/promises";

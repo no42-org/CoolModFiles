@@ -21,7 +21,7 @@ import LoadingState from "./LoadingState";
 import SpectrumAnalyzer from "./SpectrumAnalyzer";
 import { showToast } from "../utils";
 import type { FavoriteTrack } from "./LikedMod";
-import type { AudioPlayer } from "../lib/audio-player";
+import type { AudioPlayer, EngineKind } from "../lib/audio-player";
 import type { MetaData } from "./Player";
 import { formatSubsongName } from "./subsong-format";
 
@@ -55,6 +55,14 @@ type PlayerBigProps = {
   updateFavoriteModsRuntime: (next: FavoriteTrack[]) => void;
   selectedSubsong: number;
   onSubsongChange: (idx: number) => void;
+  /**
+   * Currently-active audio engine. Used to render the "recording" badge
+   * and to hide tracker-specific surfaces (subsong selector,
+   * order/pattern/row indicators) when the active engine is `pcm`.
+   * `undefined` means "no track loaded yet" — render the surface
+   * neutrally as if a tracker were about to load.
+   */
+  activeEngine?: EngineKind;
 };
 
 function PlayerBig({
@@ -84,7 +92,9 @@ function PlayerBig({
   updateFavoriteModsRuntime,
   selectedSubsong,
   onSubsongChange,
+  activeEngine,
 }: PlayerBigProps) {
+  const isPcm = activeEngine === "pcm";
   const [dropDownClass, setDropDownClass] = React.useState(dropDownClose);
   const [volumePopoverOpen, setVolumePopoverOpen] = React.useState(false);
   const volumePopoverRef = React.useRef<HTMLDivElement | null>(null);
@@ -197,7 +207,12 @@ function PlayerBig({
               <SpectrumAnalyzer analyser={player?.analyser ?? null} />
             </div>
           </div>
-          <h2 className={styles.title}>{title ? title : "[No Title]"}</h2>
+          <h2 className={styles.title}>
+            {title ? title : "[No Title]"}
+            {isPcm ? (
+              <span className={styles.recordingBadge}>recording</span>
+            ) : null}
+          </h2>
           {!loading ? (
             <ul className={styles.metadata}>
               {metaData.artist ? <li>Artist: {metaData.artist}</li> : null}
@@ -220,6 +235,7 @@ function PlayerBig({
             <LoadingState />
           )}
           {!loading &&
+          !isPcm &&
           (metaData.numSubsongs ?? 0) > 1 &&
           metaData.songs &&
           metaData.songs.length > 0 ? (

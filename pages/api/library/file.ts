@@ -1,8 +1,13 @@
 // GET /api/library/file?path=<file>
 // Streams the raw bytes of the requested file. Allowlist covers MOD
-// tracker formats plus TFMX-pair halves. TFMX halves are only served
-// when their partner half exists in the same directory — see design
-// D4 "orphan-half rejection preserves the security perimeter".
+// tracker formats, AHX/THX, PCM recordings (.mp3/.ogg/.flac), plus
+// TFMX-pair halves. TFMX halves are only served when their partner
+// half exists in the same directory — see design D4 "orphan-half
+// rejection preserves the security perimeter".
+//
+// This endpoint does NOT honour the `excludeRecordings` query parameter
+// (see /api/library/random) — per-file fetch is unaffected by the
+// random-walk preference. Per add-lost-module-recordings Decision 14.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs/promises";
