@@ -10,7 +10,7 @@ import {
   PlayButton,
   VolumeIcon,
 } from "../icons";
-import type { AudioPlayer } from "../lib/audio-player";
+import type { AudioPlayer, EngineKind } from "../lib/audio-player";
 import type { MetaData } from "./Player";
 import { formatSubsongName } from "./subsong-format";
 
@@ -31,6 +31,11 @@ type PlayerMinProps = {
   downloadTrack: () => void | Promise<void>;
   selectedSubsong: number;
   onSubsongChange: (idx: number) => void;
+  /**
+   * Currently-active audio engine. Used to render the "recording" badge
+   * next to the title when the engine is `pcm`.
+   */
+  activeEngine?: EngineKind;
 };
 
 function PlayerMin({
@@ -50,7 +55,9 @@ function PlayerMin({
   downloadTrack,
   selectedSubsong,
   onSubsongChange,
+  activeEngine,
 }: PlayerMinProps) {
+  const isPcm = activeEngine === "pcm";
   const [volumePopoverOpen, setVolumePopoverOpen] = React.useState(false);
   const volumePopoverRef = React.useRef<HTMLDivElement | null>(null);
   const volumeButtonRef = React.useRef<HTMLButtonElement | null>(null);
@@ -93,11 +100,17 @@ function PlayerMin({
           alt="anim"
         />
         <div className={styles.titleWrap}>
-          <h3>{title ? title : "[No Title]"}</h3>
+          <h3>
+            {title ? title : "[No Title]"}
+            {isPcm ? (
+              <span className={styles.recordingBadge}>recording</span>
+            ) : null}
+          </h3>
           <ul className={styles.metadata}>
             <li>Track Id: #{trackId}</li>
           </ul>
           {!loading &&
+          !isPcm &&
           (metaData.numSubsongs ?? 0) > 1 &&
           metaData.songs &&
           metaData.songs.length > 0 ? (

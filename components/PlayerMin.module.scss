@@ -34,6 +34,23 @@
   }
 }
 
+// Inline "recording" badge rendered next to the title when the active
+// engine is `pcm`. Tighter than the PlayerBig variant — PlayerMin has
+// less horizontal real estate. Per add-lost-module-recordings Decision 5.
+.recordingBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8e8e8e;
+  border: 1px solid #8e8e8e;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
 .subsongRow {
   display: flex;
   align-items: center;

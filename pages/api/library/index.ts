@@ -2,6 +2,10 @@
 // Returns { dirs, files, pairs, truncated } for the immediate children
 // of the requested directory level. TFMX-pair halves are grouped into
 // `pairs`; the remaining files are MOD-allowlist filtered into `files`.
+//
+// This endpoint does NOT honour the `excludeRecordings` query parameter
+// (see /api/library/random) — folder listings always reflect filesystem
+// reality. Per add-lost-module-recordings Decision 14.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs/promises";

@@ -26,6 +26,7 @@
  */
 
 import { looksLikeAhx } from "./ahx-magic";
+import { mimeForBuffer } from "./recording-magic";
 
 export type TfmxPair = {
   tfx: ArrayBuffer | Uint8Array;
@@ -35,7 +36,7 @@ export type TfmxPair = {
 
 export type AudioPlayerConfig = ChiptuneConfig;
 
-export type EngineKind = "libopenmpt" | "tfmx" | "ahx";
+export type EngineKind = "libopenmpt" | "tfmx" | "ahx" | "pcm";
 
 type EventName =
   | "onInitialized"
@@ -119,6 +120,22 @@ export class AudioPlayer {
   // switch correctly invalidates each pending play without one
   // engine's counter masking the other's.
   private ahxGeneration = 0;
+
+  // Lazy state for the PCM engine (OGG/FLAC/MP3 recordings). pcmReady
+  // serves the same race-guard role as tfmxReady/ahxReady — concurrent
+  // playPcm calls cannot both pass an `if (!this.pcmEl)` check and each
+  // call createMediaElementSource on the same element (which throws
+  // InvalidStateError: only one source node per element).
+  private pcmReady?: Promise<void>;
+  private pcmEl?: HTMLAudioElement;
+  private pcmSrc?: MediaElementAudioSourceNode;
+
+  // Generation counter for PCM plays. Bumped on every playPcm() and
+  // stop(). Deferred ensurePcm().then callbacks check it before
+  // assigning a new src so a newer engine switch invalidates the
+  // pending play. Also used to gate aborted-load `error` events from
+  // a stale src swap from interrupting a newer recording.
+  private pcmGeneration = 0;
 
   private handlers: Array<{ eventName: EventName; handler: Handler }> = [];
 
@@ -267,6 +284,197 @@ export class AudioPlayer {
     return this.ahxReady;
   }
 
+  // Lazy-create the HTMLAudioElement + MediaElementAudioSourceNode for
+  // PCM recording playback. No worklet, no WASM — the browser's native
+  // OGG/FLAC/MP3 decoders are the engine. Connects to the same master
+  // gain as the worklet engines so the spectrum analyser tap, master
+  // volume, and cross-engine handshake all keep working without
+  // modification.
+  //
+  // Returns a Promise to mirror ensureTfmx/ensureAhx, but the underlying
+  // operations are synchronous — there's no addModule equivalent for
+  // <audio>. The Promise serves the race-guard role: concurrent playPcm
+  // calls cannot both pass an `if (!this.pcmEl)` check and each invoke
+  // createMediaElementSource on the same element (which throws
+  // InvalidStateError).
+  // Track type for the currently-loaded PCM recording. Set in playPcm
+  // before the audio element loads, read by the loadedmetadata listener
+  // to populate MetaData.type ("mp3"/"ogg"/"flac"). MetaData.title is
+  // intentionally NOT populated here — Player.tsx derives the title
+  // from the source's filename per design.md Decision 8 (no tag parser).
+  private pcmType?: "mp3" | "ogg" | "flac";
+
+  private ensurePcm(): Promise<void> {
+    if (!this.pcmReady) {
+      try {
+        this.pcmEl = new Audio();
+        // "metadata" is enough to fire loadedmetadata without
+        // prefetching the whole file on every src swap. The explicit
+        // play() call triggers full streaming when the user actually
+        // wants to listen.
+        this.pcmEl.preload = "metadata";
+        // Master gain is the sole volume authority. Pinning these
+        // properties to neutral values means the volume popover stays
+        // effective; reassigning them anywhere else would silently
+        // break it.
+        this.pcmEl.volume = 1.0;
+        this.pcmEl.muted = false;
+        // crossOrigin is read-once at load time — must be set BEFORE
+        // any src assignment. Defensive: blob URLs are same-origin
+        // and don't need it, but a future http URL would.
+        this.pcmEl.crossOrigin = "anonymous";
+
+        this.pcmSrc = this.context.createMediaElementSource(this.pcmEl);
+        this.pcmSrc.connect(this.gain);
+
+        // loadedmetadata: if duration is finite, populate it.
+        // VBR MP3s without a Xing/VBRI header report Infinity here;
+        // the duration becomes finite later via durationchange.
+        this.pcmEl.addEventListener("loadedmetadata", () => {
+          if (this.active !== "pcm" || !this.pcmEl) return;
+          const dur = this.pcmEl.duration;
+          const meta: ChiptuneMeta = { type: this.pcmType };
+          if (Number.isFinite(dur)) {
+            meta.dur = dur;
+            this.duration = dur;
+          } else {
+            this.duration = undefined;
+          }
+          this.meta = meta;
+          this.fireEvent("onMetadata", meta);
+        });
+
+        // durationchange: when a VBR MP3's duration becomes finite,
+        // update and re-fire onMetadata so the seekbar picks it up.
+        this.pcmEl.addEventListener("durationchange", () => {
+          if (this.active !== "pcm" || !this.pcmEl) return;
+          const dur = this.pcmEl.duration;
+          if (Number.isFinite(dur) && dur !== this.duration) {
+            this.duration = dur;
+            const meta: ChiptuneMeta = { type: this.pcmType, dur };
+            this.meta = meta;
+            this.fireEvent("onMetadata", meta);
+          }
+        });
+
+        this.pcmEl.addEventListener("timeupdate", () => {
+          if (this.active !== "pcm" || !this.pcmEl) return;
+          const pos = this.pcmEl.currentTime;
+          this.currentTime = pos;
+          this.fireEvent("onProgress", { pos });
+        });
+
+        this.pcmEl.addEventListener("ended", () => {
+          if (this.active !== "pcm") return;
+          this.fireEvent("onEnded");
+        });
+
+        // error: a rapid src swap (user clicks recording A, then B
+        // before A finishes loading) may produce an error event for
+        // the aborted A load. We can't reliably tag the listener with
+        // a specific generation; instead, guard on this.active so a
+        // post-engine-switch error is silently dropped.
+        this.pcmEl.addEventListener("error", () => {
+          if (this.active !== "pcm") return;
+          const code = this.pcmEl?.error?.code;
+          console.error("[pcm]", code);
+          this.fireEvent("onError", { type: "pcm" });
+        });
+
+        this.pcmReady = Promise.resolve();
+      } catch (e) {
+        console.error("[AudioPlayer] pcm engine init failed", e);
+        this.pcmReady = Promise.reject(e);
+        this.pcmEl = undefined;
+        this.pcmSrc = undefined;
+      }
+    }
+    return this.pcmReady;
+  }
+
+  private playPcm(input: ArrayBuffer, mime: string): void {
+    const wasTfmx = this.active === "tfmx";
+    const wasAhx = this.active === "ahx";
+    this.active = "pcm";
+    // Set pcmType from mime so the loadedmetadata listener can include
+    // it in MetaData.type. Player.tsx reads this to drive engine-aware
+    // UI gating (SoundPane hints, PlayerBig pattern viewer).
+    this.pcmType =
+      mime === "audio/mpeg" ? "mp3" : mime === "audio/ogg" ? "ogg" : "flac";
+    const myGen = ++this.pcmGeneration;
+    this.tfmxGeneration++;
+    this.ahxGeneration++;
+    // Silence libopenmpt unconditionally — its worklet keeps writing
+    // PCM into the master gain until told to stop.
+    this.chiptune.stop();
+
+    const startPcm = () => {
+      this.ensurePcm()
+        .then(() => {
+          // Generation guard: a newer engine switch invalidates this.
+          if (myGen !== this.pcmGeneration) return;
+          if (!this.pcmEl) return;
+          // canPlayType returns "" if the codec is unsupported. For
+          // explicit-click playback this gives an actionable error
+          // path instead of a mystery skip; random walks still
+          // recover via onError → playNext.
+          if (this.pcmEl.canPlayType(mime) === "") {
+            this.fireEvent("onError", {
+              type: "pcm-codec-unsupported",
+              detail: mime,
+            });
+            return;
+          }
+          // Revoke the previous blob URL (if any) before assigning a
+          // new one to keep the browser from holding the prior buffer.
+          const priorSrc = this.pcmEl.src;
+          if (priorSrc && priorSrc.startsWith("blob:")) {
+            try { URL.revokeObjectURL(priorSrc); } catch { /* ignore */ }
+          }
+          this.pcmEl.src = URL.createObjectURL(
+            new Blob([input], { type: mime })
+          );
+          // play() returns a Promise that REJECTS under autoplay
+          // policy. Surface as onError so the recovery path runs
+          // instead of leaving the UI stuck on "Loading…".
+          const playPromise = this.pcmEl.play();
+          if (playPromise && typeof playPromise.catch === "function") {
+            playPromise.catch((err: unknown) => {
+              if (myGen !== this.pcmGeneration) return;
+              this.fireEvent("onError", {
+                type: "pcm-autoplay",
+                detail: String(err),
+              });
+            });
+          }
+        })
+        .catch((e) => {
+          if (myGen !== this.pcmGeneration) return;
+          console.error("[AudioPlayer] pcm play aborted", e);
+          this.fireEvent("onError", { type: "pcm-init" });
+        });
+    };
+
+    if ((wasTfmx && this.tfmxNode) || (wasAhx && this.ahxNode)) {
+      // Cross-engine handshake mirrors the existing pattern — wait for
+      // the worklet to ack its stop before assigning the audio
+      // element's src so both engines don't briefly mix.
+      if (wasTfmx && this.tfmxNode) {
+        this.tfmxNode.port.postMessage({ cmd: "stop" });
+      }
+      if (wasAhx && this.ahxNode) {
+        this.ahxNode.port.postMessage({ cmd: "stop" });
+      }
+      this.waitForStopAck_().then(startPcm);
+    } else {
+      // libopenmpt was already active or no prior engine: stop any
+      // worklet nodes (silently producing silence anyway) and start.
+      if (this.tfmxNode) this.tfmxNode.port.postMessage({ cmd: "stop" });
+      if (this.ahxNode) this.ahxNode.port.postMessage({ cmd: "stop" });
+      startPcm();
+    }
+  }
+
   private handleAhxMessage_(msg: MessageEvent) {
     const data = msg.data as { cmd: string; [k: string]: unknown };
     switch (data.cmd) {
@@ -390,20 +598,28 @@ export class AudioPlayer {
 
   /**
    * Play a tracker module (libopenmpt-routed), a TFMX pair (tfmx-routed),
-   * or an AHX/THX file (ahx-routed). Dispatch order in `play(input)`:
+   * an AHX/THX file (ahx-routed), or a PCM recording (pcm-routed via the
+   * browser's native decoders). Dispatch order in `play(input)`:
    *   1. TfmxPair shape → libtfmx
    *   2. ArrayBuffer + AHX/THX magic + valid version byte → ahx2play
-   *   3. Anything else → libopenmpt
-   * AHX and TFMX worklets are lazy-loaded on first use.
+   *   3. ArrayBuffer + OGG/FLAC/MP3 magic → PCM adapter
+   *   4. Anything else → libopenmpt
+   * AHX and TFMX worklets are lazy-loaded on first use. The PCM adapter
+   * is lazy-created on first PCM play (no worklet — uses HTMLAudioElement).
    */
   play(input: ArrayBuffer | TfmxPair): void {
+    let pcmMime: ReturnType<typeof mimeForBuffer> = null;
     if (isTfmxPair(input)) {
       const wasAhx = this.active === "ahx";
       this.active = "tfmx";
       const myGen = ++this.tfmxGeneration;
       this.ahxGeneration++;  // invalidate any pending AHX play
+      this.pcmGeneration++;  // invalidate any pending PCM play
       // Silence the libopenmpt engine while TFMX takes over the voice.
       this.chiptune.stop();
+      // Synchronously pause the PCM audio element if it exists — no ack
+      // handshake needed because <audio>.pause() is synchronous.
+      if (this.pcmEl) this.pcmEl.pause();
       // Cross-engine handshake from ahx → tfmx: need ahx's stopped ack
       // before starting tfmx, otherwise both worklets briefly mix.
       const startTfmx = () => {
@@ -447,8 +663,10 @@ export class AudioPlayer {
       this.active = "ahx";
       const myGen = ++this.ahxGeneration;
       this.tfmxGeneration++;  // invalidate any pending TFMX play
+      this.pcmGeneration++;   // invalidate any pending PCM play
       // Silence the libopenmpt engine.
       this.chiptune.stop();
+      if (this.pcmEl) this.pcmEl.pause();
       const startAhx = () => {
         this.ensureAhx()
           .then(() => {
@@ -469,12 +687,26 @@ export class AudioPlayer {
       } else {
         startAhx();
       }
+    } else if ((pcmMime = mimeForBuffer(input)) !== null) {
+      // At this point in the dispatch chain TypeScript has narrowed
+      // `input` to `never` (TfmxPair already excluded; looksLikeAhx's
+      // type predicate narrowed away the ArrayBuffer in the false
+      // branch). It is runtime-safely an ArrayBuffer here — the
+      // `looksLikeAhx is ArrayBuffer` predicate only fires positively
+      // for ArrayBuffers AND the playable callers (Player.tsx,
+      // EmbedPlayer.tsx) never construct a non-TfmxPair non-ArrayBuffer
+      // input. The assertion below is the minimum needed to satisfy
+      // strict mode without restructuring the dispatch.
+      this.playPcm(input as ArrayBuffer, pcmMime);
     } else {
       const wasTfmx = this.active === "tfmx";
       const wasAhx = this.active === "ahx";
       this.active = "libopenmpt";
       this.tfmxGeneration++;
       this.ahxGeneration++;
+      this.pcmGeneration++;
+      // Synchronously pause PCM if it was active or just lingering. No ack.
+      if (this.pcmEl) this.pcmEl.pause();
       if (wasTfmx && this.tfmxNode) {
         // Cross-engine switch: post stop, then wait for the worklet's
         // {cmd:'stopped'} ack before starting libopenmpt — otherwise the
@@ -524,6 +756,8 @@ export class AudioPlayer {
       this.tfmxNode.port.postMessage({ cmd: "pause" });
     } else if (this.active === "ahx" && this.ahxNode) {
       this.ahxNode.port.postMessage({ cmd: "pause" });
+    } else if (this.active === "pcm" && this.pcmEl) {
+      this.pcmEl.pause();
     } else {
       this.chiptune.pause();
     }
@@ -534,6 +768,18 @@ export class AudioPlayer {
       this.tfmxNode.port.postMessage({ cmd: "unpause" });
     } else if (this.active === "ahx" && this.ahxNode) {
       this.ahxNode.port.postMessage({ cmd: "unpause" });
+    } else if (this.active === "pcm" && this.pcmEl) {
+      // play() returns a Promise; rejection is handled the same way as
+      // the initial playPcm autoplay-rejection path.
+      const p = this.pcmEl.play();
+      if (p && typeof p.catch === "function") {
+        p.catch((err: unknown) => {
+          this.fireEvent("onError", {
+            type: "pcm-autoplay",
+            detail: String(err),
+          });
+        });
+      }
     } else {
       this.chiptune.unpause();
     }
@@ -544,6 +790,12 @@ export class AudioPlayer {
       this.tfmxNode.port.postMessage({ cmd: "togglePause" });
     } else if (this.active === "ahx" && this.ahxNode) {
       this.ahxNode.port.postMessage({ cmd: "togglePause" });
+    } else if (this.active === "pcm" && this.pcmEl) {
+      if (this.pcmEl.paused) {
+        this.unpause();
+      } else {
+        this.pcmEl.pause();
+      }
     } else {
       this.chiptune.togglePause();
     }
@@ -552,8 +804,13 @@ export class AudioPlayer {
   stop(): void {
     this.tfmxGeneration++;
     this.ahxGeneration++;
+    this.pcmGeneration++;
     if (this.tfmxNode) this.tfmxNode.port.postMessage({ cmd: "stop" });
     if (this.ahxNode) this.ahxNode.port.postMessage({ cmd: "stop" });
+    if (this.pcmEl) {
+      this.pcmEl.pause();
+      this.pcmEl.currentTime = 0;
+    }
     this.chiptune.stop();
   }
 
@@ -565,6 +822,8 @@ export class AudioPlayer {
       // silently for facade parity. Documented as a Phase 1 follow-up
       // in design.md "Open Questions".
       this.ahxNode.port.postMessage({ cmd: "setPos", val: seconds });
+    } else if (this.active === "pcm" && this.pcmEl) {
+      this.pcmEl.currentTime = seconds;
     } else {
       this.chiptune.seek(seconds);
     }
@@ -684,6 +943,7 @@ export class AudioPlayer {
   dispose(): void {
     this.tfmxGeneration++;
     this.ahxGeneration++;
+    this.pcmGeneration++;
     if (this.tfmxNode) {
       try { this.tfmxNode.port.postMessage({ cmd: "stop" }); } catch { /* port closed */ }
       try { this.tfmxNode.disconnect(); } catch { /* not connected */ }
@@ -694,6 +954,20 @@ export class AudioPlayer {
       try { this.ahxNode.disconnect(); } catch { /* not connected */ }
       this.ahxNode = undefined;
     }
+    if (this.pcmEl) {
+      try { this.pcmEl.pause(); } catch { /* ignore */ }
+      const src = this.pcmEl.src;
+      if (src && src.startsWith("blob:")) {
+        try { URL.revokeObjectURL(src); } catch { /* ignore */ }
+      }
+      try { this.pcmEl.removeAttribute("src"); } catch { /* ignore */ }
+    }
+    if (this.pcmSrc) {
+      try { this.pcmSrc.disconnect(); } catch { /* not connected */ }
+      this.pcmSrc = undefined;
+    }
+    this.pcmEl = undefined;
+    this.pcmReady = undefined;
     this.tfmxReady = undefined;
     this.ahxReady = undefined;
     this.pendingStopAck = undefined;

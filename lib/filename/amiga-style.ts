@@ -34,6 +34,13 @@ const NATIVE_PREFIX_TABLE: Readonly<Record<string, string>> = Object.freeze({
 // extension maps to its own extension-derived prefix. The product
 // directive trades historical accuracy for visual consistency — users
 // who opt into this mode want every catalog row in prefix form.
+//
+// Note: PCM recording extensions (.mp3, .ogg, .flac) are deliberately
+// NOT included in either NATIVE or ALL tables. Recordings are
+// pre-rendered audio captures of lost tracker modules — they are not
+// tracker artifacts and rendering them with a tracker-style prefix
+// would misrepresent their provenance. They fall through to literal
+// rendering in both modes. Per add-lost-module-recordings Decision 7.
 const ALL_PREFIX_TABLE: Readonly<Record<string, string>> = Object.freeze({
   ...NATIVE_PREFIX_TABLE,
   ".xm": "xm.",

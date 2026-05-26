@@ -7,7 +7,11 @@
 import path from "path";
 import fs from "fs/promises";
 
-export { MODULE_EXTENSIONS, isModuleFile } from "../../components/sources";
+export {
+  MODULE_EXTENSIONS,
+  RECORDING_EXTENSIONS,
+  isModuleFile,
+} from "../../components/sources";
 
 export const LIBRARY_ROOT: string | null = process.env.LIBRARY_ROOT || null;
 

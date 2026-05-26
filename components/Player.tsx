@@ -33,6 +33,7 @@ import {
 import type { FavoriteTrack } from "./LikedMod";
 import type { ModItem } from "../lib/modarchive/types";
 import { AudioPlayer, type EngineKind } from "../lib/audio-player";
+import { mimeForBuffer } from "../lib/recording-magic";
 import { FilenameStyleProvider } from "../lib/filename/context";
 import { type FilenameStyle } from "../lib/filename/amiga-style";
 
@@ -61,41 +62,56 @@ function readFilenameStyle(): FilenameStyle {
 
 /**
  * Pick the file extension for a Mod Archive download by sniffing the
- * first 4 bytes of the fetched blob. Returns:
+ * first bytes of the fetched blob. Returns:
  *   - ".ahx" for AHX-magic content (bytes 0-2 = "AHX")
  *   - ".thx" for THX-magic content (bytes 0-2 = "THX", the legacy name)
+ *   - ".mp3" / ".ogg" / ".flac" for PCM recording magic (per
+ *     lib/recording-magic.ts)
  *   - null otherwise (caller falls back to ".mod")
  *
- * Both magics require the version byte at offset 3 to be 0x00 or 0x01.
+ * AHX/THX require the version byte at offset 3 to be 0x00 or 0x01.
  *
  * Why sniff instead of reading the chart row's ModItem.filename: the
  * filename isn't always available at download time — random walks,
  * permalink loads, and favorites all reach downloadTrack without a
  * chart context. Sniffing the bytes is universal and the cost is
- * negligible (4 bytes out of the already-fetched blob).
+ * negligible (≤ ID3v2-header bytes out of the already-fetched blob).
  *
  * Why distinguish AHX-magic from THX-magic in the EXTENSION: the spec
  * scenario "Legacy THX modarchive track downloads as `.thx`" requires
  * THX-named files to round-trip with their original extension. Since
- * we sniff bytes (not filename), the bytes ARE the upstream identity:
- * an AHX-magic file downloads as ".ahx", a THX-magic file downloads
- * as ".thx". Both play through the same engine via looksLikeAhx —
- * the extension distinction is purely cosmetic / round-trip fidelity.
+ * we sniff bytes (not filename), the bytes ARE the upstream identity.
  *
- * Mirrors the magic-byte gate in lib/ahx-magic.ts looksLikeAhx —
- * keep the two in sync if D4 ever widens (e.g. AHX v2 introducing
- * version byte 0x02).
+ * Mirrors the magic-byte gates in lib/ahx-magic.ts and
+ * lib/recording-magic.ts — keep the three in sync if dispatch widens.
  */
 async function sniffDownloadExtension(blob: Blob): Promise<string | null> {
   if (blob.size < 4) return null;
-  const header = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+  // Read enough bytes to cover an ID3v2 header + signature past tag.
+  // 32 bytes is enough for a minimum ID3v2 header (10 bytes) plus a
+  // short tag body plus 4 signature bytes. For an MP3/OGG/FLAC with a
+  // larger ID3v2 prefix, mimeForBuffer needs the full tag body — but
+  // even a 10MB ID3v2 prefix is rare and the caller would still get
+  // ".mp3" fallthrough via the frame-sync path on the post-tag bytes.
+  // Read the first 1 KB defensively.
+  const sniffSize = Math.min(blob.size, 1024);
+  const header = await blob.slice(0, sniffSize).arrayBuffer();
+  const bytes = new Uint8Array(header);
+  // AHX/THX first (matches the AudioPlayer.play() dispatch order).
   const isAhx =
-    header[0] === 0x41 && header[1] === 0x48 && header[2] === 0x58;
+    bytes[0] === 0x41 && bytes[1] === 0x48 && bytes[2] === 0x58;
   const isThx =
-    header[0] === 0x54 && header[1] === 0x48 && header[2] === 0x58;
-  if (!isAhx && !isThx) return null;
-  if (header[3] !== 0x00 && header[3] !== 0x01) return null;
-  return isThx ? ".thx" : ".ahx";
+    bytes[0] === 0x54 && bytes[1] === 0x48 && bytes[2] === 0x58;
+  if (isAhx || isThx) {
+    if (bytes[3] === 0x00 || bytes[3] === 0x01) {
+      return isThx ? ".thx" : ".ahx";
+    }
+  }
+  const mime = mimeForBuffer(header);
+  if (mime === "audio/mpeg") return ".mp3";
+  if (mime === "audio/ogg") return ".ogg";
+  if (mime === "audio/flac") return ".flac";
+  return null;
 }
 
 function applyAmigaSetting(player: AudioPlayer, model: AmigaModel) {
@@ -1172,6 +1188,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
               favoriteModsRuntime={favoriteModsRuntime}
               selectedSubsong={selectedSubsong}
               onSubsongChange={handleSubsongChange}
+              activeEngine={activeEngine}
             />
           </div>
           <SourceDrawer
@@ -1241,6 +1258,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             downloadTrack={downloadTrack}
             selectedSubsong={selectedSubsong}
             onSubsongChange={handleSubsongChange}
+            activeEngine={activeEngine}
           />
         </div>
       )}

@@ -86,8 +86,15 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
     getBuffer(source)
       .then((buffer) => {
         // The embed page is restricted to modarchive + library sources;
-        // neither ever yields the TfmxBuffers two-buffer shape. Cast is
-        // safe; the alternative branch would be dead code today.
+        // neither ever yields the TfmxBuffers two-buffer shape. Three
+        // ArrayBuffer-content classes flow through this path: tracker
+        // modules (libopenmpt), AHX/THX recordings, and PCM recordings
+        // (.mp3/.ogg/.flac — routed through AudioPlayer's native-decode
+        // adapter by content sniff). The cast is safe; the alternative
+        // branch would be dead code today. See
+        // openspec/changes/add-lost-module-recordings/ Decision 13 for
+        // why the embed surface plays recordings transparently with no
+        // UI gating.
         player.play(buffer as ArrayBuffer);
         setIsPlay(true);
         player.seek(0);
