@@ -301,6 +301,12 @@ type PlayerProps = {
 
 function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const [isPlay, setIsPlay] = React.useState(false);
+  // True when Safari's autoplay policy blocked playback of the current
+  // PCM recording (the playingSource at the time of the error). The
+  // play button stays visible so a user click retries with a fresh
+  // gesture context. Cleared on successful next play or any other
+  // engine starting up.
+  const [autoplayBlocked, setAutoplayBlocked] = React.useState(false);
   const [player, setPlayer] = React.useState<AudioPlayer | null>(null);
   const [volume, setVolume] = React.useState<number>(() => {
     const rememberedVolume = parseInt(localStorage.getItem("volume") || "");
@@ -628,8 +634,23 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     // other source confused users (the undersized Apidya-Load case
     // teleported them to Hexuma). For those sources, surface the error
     // and stop.
-    jsPlayer.onError(() => {
+    jsPlayer.onError((payload) => {
       setIsPlay(false);
+      // PCM autoplay-policy rejection (Safari). The bytes and engine
+      // are fine — Safari just refused to start playback without a
+      // fresh user gesture. Don't advance, don't toast — surface a
+      // "tap play to start" affordance so the user can retry with a
+      // gesture context.
+      const errType =
+        payload && typeof payload === "object" && "type" in payload
+          ? (payload as { type: unknown }).type
+          : undefined;
+      if (errType === "pcm-autoplay") {
+        setLoading(false);
+        setAutoplayBlocked(true);
+        setTitle("Tap play to start");
+        return;
+      }
       const cur = playingSourceRef.current;
       if (cur?.type === "modarchive") {
         playNextRef.current();
@@ -694,6 +715,15 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
 
   const togglePlay = () => {
     if (!player) return;
+    // If Safari blocked the previous play() under its autoplay policy,
+    // this click IS the fresh user gesture we need. Retry the current
+    // source from scratch — playFromSource will call primePcm() inside
+    // this gesture context to unlock the audio element.
+    if (autoplayBlocked) {
+      setAutoplayBlocked(false);
+      playFromSource(playingSourceRef.current);
+      return;
+    }
     setIsPlay(!isPlay);
     player.togglePause();
   };
@@ -804,6 +834,20 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     // earlier playFromSource calls overwriting fresh state when the
     // user switches tracks/sources before the previous fetch resolves.
     const myGeneration = ++playGenerationRef.current;
+    // Prime the PCM <audio> element while we still hold the user
+    // gesture. Safari's autoplay policy rejects audio.play() if it
+    // hasn't seen a gesture-context play on the element, and our
+    // actual play() lands AFTER getBuffer's async boundary by which
+    // time the gesture is gone. primePcm() is idempotent — first call
+    // unlocks, subsequent calls no-op — and the element is created
+    // lazily, so this costs ~nothing if the user never plays a
+    // recording. It's called unconditionally because we don't know
+    // the source's engine until the bytes arrive.
+    player.primePcm();
+    // Any new playFromSource clears a prior autoplay-blocked state —
+    // even if it ends up rejected again, the title/state are stale and
+    // shouldn't persist into the new attempt.
+    setAutoplayBlocked(false);
     setLoading(true);
     setIsPlay(false);
     setTitle("Loading...");

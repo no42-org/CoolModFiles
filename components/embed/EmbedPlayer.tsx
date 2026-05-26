@@ -81,6 +81,11 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
 
   function playFromSource(source: Source) {
     if (!player) return;
+    // Prime the PCM <audio> element while we hold the user gesture —
+    // Safari's autoplay policy needs a gesture-context play on the
+    // element before async-boundary play() calls work. Idempotent and
+    // cheap when the source is a tracker.
+    player.primePcm();
     setTitle("Loading");
     setPlayingSource(source);
     getBuffer(source)

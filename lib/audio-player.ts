@@ -284,6 +284,77 @@ export class AudioPlayer {
     return this.ahxReady;
   }
 
+  // Tracks whether the PCM <audio> element has been "unlocked" by a
+  // user gesture. Safari's autoplay policy requires that audio.play()
+  // be called inside a gesture handler — but our actual play() happens
+  // after an async getBuffer() boundary, by which time the gesture
+  // context is gone. We unlock the element once per session by playing
+  // a tiny silent WAV inside the click handler; subsequent play() calls
+  // on the same element succeed for the rest of the session even
+  // without a fresh gesture (per WebKit's per-element unlock rule).
+  private pcmPrimed = false;
+
+  // Inline 36-byte silent WAV (PCM, 8-bit mono, 32 kHz, 0 samples of
+  // audio after the header). Just enough for Safari to see "a media
+  // play succeeded in a gesture" and unlock the element.
+  private static readonly SILENT_WAV =
+    "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+  /**
+   * Unlock the PCM `<audio>` element by playing a silent WAV in the
+   * current synchronous tick. Safari's autoplay policy: once an audio
+   * element has play()ed inside a gesture, it's unlocked for the
+   * session and subsequent play() calls succeed even across async
+   * boundaries. Other browsers don't need this but the call is a cheap
+   * no-op for them.
+   *
+   * MUST be called synchronously from a click/keydown handler — the
+   * gesture context is what unlocks the element. Calling it from a
+   * `.then()` callback after a fetch will not work.
+   *
+   * Idempotent: subsequent calls after the first do nothing. The
+   * muted/volume bracketing here is the one place outside `ensurePcm`
+   * where these properties are touched; the audio element is restored
+   * to its neutral state (muted=false, volume=1) before any real
+   * playback.
+   */
+  primePcm(): void {
+    if (this.pcmPrimed) return;
+    this.pcmPrimed = true;
+    this.ensurePcm()
+      .then(() => {
+        if (!this.pcmEl) return;
+        // muted=true during the unlock keeps the silent WAV inaudible
+        // even on browsers without an autoplay restriction. Reset
+        // before any real playback so the master gain remains the sole
+        // volume authority.
+        this.pcmEl.muted = true;
+        this.pcmEl.src = AudioPlayer.SILENT_WAV;
+        const p = this.pcmEl.play();
+        const restore = () => {
+          if (!this.pcmEl) return;
+          try { this.pcmEl.pause(); } catch { /* ignore */ }
+          this.pcmEl.muted = false;
+        };
+        if (p && typeof p.then === "function") {
+          p.then(restore).catch(() => {
+            // Even the unlock failed (very rare; Safari edge case).
+            // Reset state so a later primePcm call can retry.
+            restore();
+            this.pcmPrimed = false;
+          });
+        } else {
+          // Older browsers where play() doesn't return a Promise.
+          restore();
+        }
+      })
+      .catch(() => {
+        // ensurePcm rejected — likely createMediaElementSource threw.
+        // Clear the flag so a retry from a later gesture is possible.
+        this.pcmPrimed = false;
+      });
+  }
+
   // Lazy-create the HTMLAudioElement + MediaElementAudioSourceNode for
   // PCM recording playback. No worklet, no WASM — the browser's native
   // OGG/FLAC/MP3 decoders are the engine. Connects to the same master
