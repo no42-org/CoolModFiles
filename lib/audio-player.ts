@@ -301,6 +301,87 @@ export class AudioPlayer {
     "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
   /**
+   * Synchronously create the PCM `<audio>` element + MediaElementSource
+   * + event listeners. Used by both `primePcm` (which must be sync to
+   * preserve gesture context) and `ensurePcm` (which wraps the same
+   * setup in a Promise for the race-guard pattern).
+   *
+   * Returns true on success (or if already set up). Returns false if
+   * the constructor or createMediaElementSource threw.
+   */
+  private setupPcmElement_(): boolean {
+    if (this.pcmEl) return true;
+    try {
+      this.pcmEl = new Audio();
+      this.pcmEl.preload = "metadata";
+      this.pcmEl.volume = 1.0;
+      this.pcmEl.muted = false;
+      this.pcmEl.crossOrigin = "anonymous";
+
+      this.pcmSrc = this.context.createMediaElementSource(this.pcmEl);
+      this.pcmSrc.connect(this.gain);
+
+      this.pcmEl.addEventListener("loadedmetadata", () => {
+        if (this.active !== "pcm" || !this.pcmEl) return;
+        const dur = this.pcmEl.duration;
+        const meta: ChiptuneMeta = { type: this.pcmType };
+        if (Number.isFinite(dur)) {
+          meta.dur = dur;
+          this.duration = dur;
+        } else {
+          this.duration = undefined;
+        }
+        this.meta = meta;
+        this.fireEvent("onMetadata", meta);
+      });
+
+      this.pcmEl.addEventListener("durationchange", () => {
+        if (this.active !== "pcm" || !this.pcmEl) return;
+        const dur = this.pcmEl.duration;
+        if (Number.isFinite(dur) && dur !== this.duration) {
+          this.duration = dur;
+          const meta: ChiptuneMeta = { type: this.pcmType, dur };
+          this.meta = meta;
+          this.fireEvent("onMetadata", meta);
+        }
+      });
+
+      this.pcmEl.addEventListener("timeupdate", () => {
+        if (this.active !== "pcm" || !this.pcmEl) return;
+        const pos = this.pcmEl.currentTime;
+        this.currentTime = pos;
+        this.fireEvent("onProgress", { pos });
+      });
+
+      this.pcmEl.addEventListener("ended", () => {
+        if (this.active !== "pcm") return;
+        this.fireEvent("onEnded");
+      });
+
+      this.pcmEl.addEventListener("error", () => {
+        if (this.active !== "pcm") return;
+        const code = this.pcmEl?.error?.code;
+        console.error("[pcm]", code);
+        // MEDIA_ERR_ABORTED (1) is the code Safari fires alongside an
+        // autoplay-policy play() rejection. The play() Promise catch
+        // already fires onError({type:"pcm-autoplay"}) for that case,
+        // so suppress the duplicate here — otherwise it overrides the
+        // "Tap play to start" UI state with a generic "Couldn't play
+        // this track" message.
+        if (code === 1) return;
+        this.fireEvent("onError", { type: "pcm" });
+      });
+
+      return true;
+    } catch (e) {
+      console.error("[AudioPlayer] pcm engine init failed", e);
+      this.pcmEl = undefined;
+      this.pcmSrc = undefined;
+      return false;
+    }
+  }
+
+  /**
    * Unlock the PCM `<audio>` element by playing a silent WAV in the
    * current synchronous tick. Safari's autoplay policy: once an audio
    * element has play()ed inside a gesture, it's unlocked for the
@@ -309,50 +390,56 @@ export class AudioPlayer {
    * no-op for them.
    *
    * MUST be called synchronously from a click/keydown handler — the
-   * gesture context is what unlocks the element. Calling it from a
-   * `.then()` callback after a fetch will not work.
+   * gesture context is what unlocks the element. The entire body runs
+   * synchronously up to and including audio.play() so the gesture
+   * context is preserved even on browsers (notably Safari) that drop
+   * gesture context across microtask boundaries inside
+   * MediaElementAudioSourceNode-wired elements.
    *
-   * Idempotent: subsequent calls after the first do nothing. The
-   * muted/volume bracketing here is the one place outside `ensurePcm`
-   * where these properties are touched; the audio element is restored
-   * to its neutral state (muted=false, volume=1) before any real
-   * playback.
+   * Also calls AudioContext.resume() if the context is suspended;
+   * Safari requires both the per-element unlock AND the context to be
+   * running for media-element-routed audio to play.
+   *
+   * Idempotent: subsequent calls after the first do nothing.
    */
   primePcm(): void {
     if (this.pcmPrimed) return;
     this.pcmPrimed = true;
-    this.ensurePcm()
-      .then(() => {
-        if (!this.pcmEl) return;
-        // muted=true during the unlock keeps the silent WAV inaudible
-        // even on browsers without an autoplay restriction. Reset
-        // before any real playback so the master gain remains the sole
-        // volume authority.
-        this.pcmEl.muted = true;
-        this.pcmEl.src = AudioPlayer.SILENT_WAV;
-        const p = this.pcmEl.play();
-        const restore = () => {
-          if (!this.pcmEl) return;
-          try { this.pcmEl.pause(); } catch { /* ignore */ }
-          this.pcmEl.muted = false;
-        };
-        if (p && typeof p.then === "function") {
-          p.then(restore).catch(() => {
-            // Even the unlock failed (very rare; Safari edge case).
-            // Reset state so a later primePcm call can retry.
-            restore();
-            this.pcmPrimed = false;
-          });
-        } else {
-          // Older browsers where play() doesn't return a Promise.
-          restore();
-        }
-      })
-      .catch(() => {
-        // ensurePcm rejected — likely createMediaElementSource threw.
-        // Clear the flag so a retry from a later gesture is possible.
+    if (!this.setupPcmElement_() || !this.pcmEl) {
+      this.pcmPrimed = false;
+      return;
+    }
+    // Resume the AudioContext if suspended. Returns a Promise but
+    // starts the resume request synchronously — Safari needs this
+    // call to originate from a gesture context, which we are in.
+    if (this.context.state === "suspended") {
+      this.context.resume().catch(() => { /* ignore */ });
+    }
+    // muted=true keeps the silent WAV inaudible even on browsers
+    // without autoplay restrictions. Restored to false before any
+    // real playback so the master gain remains the sole volume
+    // authority.
+    this.pcmEl.muted = true;
+    this.pcmEl.src = AudioPlayer.SILENT_WAV;
+    const p = this.pcmEl.play();
+    const restore = () => {
+      if (!this.pcmEl) return;
+      try { this.pcmEl.pause(); } catch { /* ignore */ }
+      this.pcmEl.muted = false;
+    };
+    if (p && typeof p.then === "function") {
+      p.then(restore).catch(() => {
+        // Unlock play() rejected (rare; Safari may still reject in
+        // some edge cases such as page-load before any user activity).
+        // Restore state and clear pcmPrimed so a later gesture (e.g.
+        // a play-button retry from the autoplayBlocked state) can
+        // attempt to unlock again.
+        restore();
         this.pcmPrimed = false;
       });
+    } else {
+      restore();
+    }
   }
 
   // Lazy-create the HTMLAudioElement + MediaElementAudioSourceNode for
@@ -377,87 +464,10 @@ export class AudioPlayer {
 
   private ensurePcm(): Promise<void> {
     if (!this.pcmReady) {
-      try {
-        this.pcmEl = new Audio();
-        // "metadata" is enough to fire loadedmetadata without
-        // prefetching the whole file on every src swap. The explicit
-        // play() call triggers full streaming when the user actually
-        // wants to listen.
-        this.pcmEl.preload = "metadata";
-        // Master gain is the sole volume authority. Pinning these
-        // properties to neutral values means the volume popover stays
-        // effective; reassigning them anywhere else would silently
-        // break it.
-        this.pcmEl.volume = 1.0;
-        this.pcmEl.muted = false;
-        // crossOrigin is read-once at load time — must be set BEFORE
-        // any src assignment. Defensive: blob URLs are same-origin
-        // and don't need it, but a future http URL would.
-        this.pcmEl.crossOrigin = "anonymous";
-
-        this.pcmSrc = this.context.createMediaElementSource(this.pcmEl);
-        this.pcmSrc.connect(this.gain);
-
-        // loadedmetadata: if duration is finite, populate it.
-        // VBR MP3s without a Xing/VBRI header report Infinity here;
-        // the duration becomes finite later via durationchange.
-        this.pcmEl.addEventListener("loadedmetadata", () => {
-          if (this.active !== "pcm" || !this.pcmEl) return;
-          const dur = this.pcmEl.duration;
-          const meta: ChiptuneMeta = { type: this.pcmType };
-          if (Number.isFinite(dur)) {
-            meta.dur = dur;
-            this.duration = dur;
-          } else {
-            this.duration = undefined;
-          }
-          this.meta = meta;
-          this.fireEvent("onMetadata", meta);
-        });
-
-        // durationchange: when a VBR MP3's duration becomes finite,
-        // update and re-fire onMetadata so the seekbar picks it up.
-        this.pcmEl.addEventListener("durationchange", () => {
-          if (this.active !== "pcm" || !this.pcmEl) return;
-          const dur = this.pcmEl.duration;
-          if (Number.isFinite(dur) && dur !== this.duration) {
-            this.duration = dur;
-            const meta: ChiptuneMeta = { type: this.pcmType, dur };
-            this.meta = meta;
-            this.fireEvent("onMetadata", meta);
-          }
-        });
-
-        this.pcmEl.addEventListener("timeupdate", () => {
-          if (this.active !== "pcm" || !this.pcmEl) return;
-          const pos = this.pcmEl.currentTime;
-          this.currentTime = pos;
-          this.fireEvent("onProgress", { pos });
-        });
-
-        this.pcmEl.addEventListener("ended", () => {
-          if (this.active !== "pcm") return;
-          this.fireEvent("onEnded");
-        });
-
-        // error: a rapid src swap (user clicks recording A, then B
-        // before A finishes loading) may produce an error event for
-        // the aborted A load. We can't reliably tag the listener with
-        // a specific generation; instead, guard on this.active so a
-        // post-engine-switch error is silently dropped.
-        this.pcmEl.addEventListener("error", () => {
-          if (this.active !== "pcm") return;
-          const code = this.pcmEl?.error?.code;
-          console.error("[pcm]", code);
-          this.fireEvent("onError", { type: "pcm" });
-        });
-
+      if (this.setupPcmElement_()) {
         this.pcmReady = Promise.resolve();
-      } catch (e) {
-        console.error("[AudioPlayer] pcm engine init failed", e);
-        this.pcmReady = Promise.reject(e);
-        this.pcmEl = undefined;
-        this.pcmSrc = undefined;
+      } else {
+        this.pcmReady = Promise.reject(new Error("pcm engine init failed"));
       }
     }
     return this.pcmReady;
@@ -485,6 +495,12 @@ export class AudioPlayer {
           // Generation guard: a newer engine switch invalidates this.
           if (myGen !== this.pcmGeneration) return;
           if (!this.pcmEl) return;
+          // Resume AudioContext if suspended. Defensive — primePcm
+          // already does this in the gesture, but the context may have
+          // been suspended again by the browser between then and now.
+          if (this.context.state === "suspended") {
+            this.context.resume().catch(() => { /* ignore */ });
+          }
           // canPlayType returns "" if the codec is unsupported. For
           // explicit-click playback this gives an actionable error
           // path instead of a mystery skip; random walks still
