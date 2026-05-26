@@ -1,6 +1,6 @@
 {
   "name": "coolmodfiles",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "A web player that plays some cool MOD files randomly 🎶",
   "main": "index.js",
   "scripts": {
