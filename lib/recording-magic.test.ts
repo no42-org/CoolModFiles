@@ -184,6 +184,79 @@ describe("mimeForBuffer", () => {
   });
 });
 
+describe("deep scan for MP3 with leading garbage", () => {
+  // MPEG-1 Layer III frame: 0xFF 0xFB ... (valid version + Layer III)
+  // The frame-byte-2 value 0x90 = bitrate 128kbps, sample rate 44.1kHz,
+  // no padding, no private bit — produces a 417-byte frame.
+  const FRAME_HEADER_4B = [0xff, 0xfb, 0x90, 0x44];
+
+  // Construct N consecutive MP3 frames separated by a frame's worth
+  // of zero padding (close enough to a real 128k/44.1k frame length
+  // that our deep-scan heuristic matches).
+  function mp3Stream(frameCount: number, frameLen: number = 417): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < frameCount; i++) {
+      out.push(...FRAME_HEADER_4B);
+      // Pad to frameLen bytes
+      for (let j = FRAME_HEADER_4B.length; j < frameLen; j++) out.push(0x00);
+    }
+    return out;
+  }
+
+  it("matches MP3 stream with leading ASCII garbage", () => {
+    // "dr.feelgood" then valid MP3 stream — mimics the user's file
+    // that fails the strict-at-offset-0 check.
+    const garbage = Array.from("dr.feelgood by xyz").map((c) =>
+      c.charCodeAt(0)
+    );
+    const buf = new Uint8Array([...garbage, ...mp3Stream(3)]).buffer;
+    expect(mimeForBuffer(buf)).toBe("audio/mpeg");
+  });
+
+  it("matches MP3 stream with leading zero padding", () => {
+    const padding = new Array(1024).fill(0x00);
+    const buf = new Uint8Array([...padding, ...mp3Stream(3)]).buffer;
+    expect(mimeForBuffer(buf)).toBe("audio/mpeg");
+  });
+
+  it("matches MP3 stream with leading binary garbage", () => {
+    const garbage = Array.from({ length: 100 }, (_, i) => (i * 7) & 0xfe);
+    const buf = new Uint8Array([...garbage, ...mp3Stream(4)]).buffer;
+    expect(mimeForBuffer(buf)).toBe("audio/mpeg");
+  });
+
+  it("does NOT match a single isolated 0xFF byte (insufficient matches)", () => {
+    const buf = new Uint8Array(2048).fill(0x00);
+    buf[100] = 0xff;
+    buf[101] = 0xfb;
+    expect(mimeForBuffer(buf.buffer)).toBeNull();
+  });
+
+  it("does NOT match two frame syncs more than 4 KB apart", () => {
+    const buf = new Uint8Array(20000).fill(0x55);
+    buf[100] = 0xff;
+    buf[101] = 0xfb;
+    buf[10000] = 0xff;
+    buf[10001] = 0xfb;
+    expect(mimeForBuffer(buf.buffer)).toBeNull();
+  });
+
+  it("does NOT match a libopenmpt format with random 0xFF bytes scattered", () => {
+    // Construct a fake MOD-like header that happens to have a 0xFF byte.
+    // 0xFF at offset 100 with byte 101 = 0xFB would otherwise look like
+    // a Layer III frame sync. Place only one such occurrence — deep
+    // scan requires MP3_DEEP_SCAN_MIN_MATCHES so this should not match.
+    const buf = new Uint8Array(2048).fill(0x00);
+    buf[0] = 0x4d; // 'M'
+    buf[1] = 0x54; // 'T'
+    buf[2] = 0x4d; // 'M'
+    buf[3] = 0x10;
+    buf[100] = 0xff;
+    buf[101] = 0xfb;
+    expect(mimeForBuffer(buf.buffer)).toBeNull();
+  });
+});
+
 describe("false-positive sweep against libopenmpt format headers", () => {
   // For each libopenmpt-supported format, construct a representative
   // first-16-byte header and verify mimeForBuffer does NOT match.

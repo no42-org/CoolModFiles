@@ -109,6 +109,59 @@ function looksLikeMp3FrameSync(bytes: Uint8Array, offset: number): boolean {
   return true;
 }
 
+// Maximum byte range scanned by the deep frame-sync probe. 64 KB
+// covers the worst real-world cases of leading garbage (oversize ID3v2
+// tags, custom rip-tool prefixes, padding zeros) without blowing the
+// CPU budget on huge non-audio files.
+const MP3_DEEP_SCAN_MAX = 65536;
+
+// Require N consecutive frame-sync matches before treating a buffer as
+// MP3 via deep scan. Random byte sequences have a non-trivial chance
+// of matching a single sync byte; requiring multiple matches with the
+// same byte-1 pattern within a short window makes false positives
+// vanishingly unlikely on non-MP3 files.
+const MP3_DEEP_SCAN_MIN_MATCHES = 3;
+
+// Maximum byte distance between consecutive frame syncs we require for
+// the "multiple matches" heuristic. A 320 kbps MP3 at 44.1 kHz has
+// frames ~1044 bytes; 32 kbps frames are ~144 bytes. Generous 4096
+// covers the full bitrate range plus any inter-frame padding.
+const MP3_DEEP_SCAN_FRAME_MAX = 4096;
+
+/**
+ * Deep scan for MP3 frame sync within the first MP3_DEEP_SCAN_MAX bytes
+ * of the buffer. Returns true when at least MP3_DEEP_SCAN_MIN_MATCHES
+ * frame syncs are found within MP3_DEEP_SCAN_FRAME_MAX bytes of each
+ * other — a heuristic that catches MP3 files with leading garbage
+ * (oversize / malformed ID3v2 tags, custom rip-tool prefixes, padding
+ * zeros, etc.) while rejecting random binary that happens to contain a
+ * single 0xFF Ex/Fx byte sequence.
+ *
+ * Many archival MP3 rescues have leading bytes that don't match the
+ * strict frame-sync-at-offset-0 rule, but the underlying audio data is
+ * recoverable by demuxers that scan for the first valid frame. The
+ * `<audio>` element does this internally; we replicate enough of the
+ * heuristic at the dispatch layer to route the buffer to the PCM
+ * engine instead of falling through to libopenmpt.
+ */
+function deepScanMp3(bytes: Uint8Array): boolean {
+  const end = Math.min(bytes.length - 1, MP3_DEEP_SCAN_MAX);
+  let lastMatch = -MP3_DEEP_SCAN_FRAME_MAX - 1;
+  let matchCount = 0;
+  for (let i = 0; i < end; i++) {
+    if (bytes[i] !== 0xff) continue;
+    if (!looksLikeMp3FrameSync(bytes, i)) continue;
+    if (i - lastMatch <= MP3_DEEP_SCAN_FRAME_MAX) {
+      matchCount++;
+      if (matchCount >= MP3_DEEP_SCAN_MIN_MATCHES) return true;
+    } else {
+      matchCount = 1;
+    }
+    lastMatch = i;
+  }
+  return false;
+}
+
 /** True iff the input looks like an OGG file (including OGG-with-ID3v2-prefix). */
 export function looksLikeOgg(input: ArrayBuffer | Uint8Array): boolean {
   if (input.byteLength < 4) return false;
@@ -175,5 +228,13 @@ export function mimeForBuffer(
   if (isOggAt(bytes, 0)) return "audio/ogg";
   if (isFlacAt(bytes, 0)) return "audio/flac";
   if (looksLikeMp3FrameSync(bytes, 0)) return "audio/mpeg";
+  // Fallback: many MP3 files in the wild have leading bytes that don't
+  // match the strict ID3v2-or-frame-sync-at-offset-0 rule — oversize
+  // ID3v2 tags with malformed size fields, custom rip-tool prefixes
+  // (ASCII metadata before the audio data), and padding-zero leaders
+  // all show up in archival recordings. Deep-scan the first 64 KB for
+  // multiple frame syncs in close proximity; that catches real MP3s
+  // with prefixed garbage without false-matching random binary.
+  if (deepScanMp3(bytes)) return "audio/mpeg";
   return null;
 }
