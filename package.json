@@ -42,7 +42,7 @@
     "react-dom": "^19.2.6",
     "react-drag-listview": "^2.0.0",
     "react-toastify": "^11.1.0",
-    "sass": "^1.99.0"
+    "sass": "^1.100.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
