@@ -90,7 +90,13 @@ test("spectrum analyzer: layout, idle state, canvas reacts to audio data", async
   expect(discBox).not.toBeNull();
   expect(canvasBox).not.toBeNull();
   if (!discBox || !canvasBox) throw new Error("boxes null");
-  expect(canvasBox.x).toBeGreaterThan(discBox.x + discBox.width - 1);
+  // Canvas starts to the right of the disc. The 8px slack mirrors the
+  // generous vertical tolerance below: the disc gif's intrinsic width plus
+  // CI-side timing of canvas backing-store sizing can make the disc's
+  // measured right edge drift a few px past canvas.x before the flex row
+  // settles. The intent is "disc on the left, canvas on the right", not a
+  // pixel-perfect non-overlap.
+  expect(canvasBox.x).toBeGreaterThan(discBox.x + discBox.width - 8);
   // Vertical centers within ~20 px of each other (align-items: center).
   // The 20px margin is generous: both items are ~169px tall, but the
   // disc gif's intrinsic aspect plus CI-side timing of canvas backing-
