@@ -6,6 +6,63 @@ import { test, expect } from "@playwright/test";
 
 test.setTimeout(60_000);
 
+// A minimal but *audible* 4-channel ProTracker ("M.K.") module, built in
+// memory and served to the player in place of a real network track (see
+// the page.route() below). The splash "play random track" path picks a
+// non-deterministic modarchive id whose format may not even be
+// libopenmpt-decodable (it could be AHX/PCM, routed to a different
+// engine, or an Invalid-ID stub) — when that happens the worklet never
+// decodes, the 🎶 title never appears, and this spec times out. Pinning
+// the fetched bytes to a known-good looping square-wave module makes both
+// "did it decode" and "is audio flowing" deterministic and removes the
+// track-download network dependency. (The SSR `latestId` RSS fetch in
+// getServerSideProps still runs, but it has a fallback and never gates
+// this spec.)
+function buildAudibleMod(): Buffer {
+  const SAMPLE_WORDS = 128; // 256 bytes of 8-bit PCM
+  const sampleBytes = SAMPLE_WORDS * 2;
+  const HEADER_SIZE = 1084; // title + 31 sample headers + order table + "M.K."
+  const PATTERN_SIZE = 64 * 4 * 4; // 64 rows × 4 channels × 4 bytes
+  const buf = Buffer.alloc(HEADER_SIZE + PATTERN_SIZE + sampleBytes);
+
+  buf.write("CMF TEST TONE", 0, "ascii"); // 20-byte song title
+
+  // Sample 1 header (30 bytes at offset 20). Samples 2..31 stay zeroed
+  // (length 0 = unused, which is valid).
+  const s = 20;
+  buf.write("square", s, "ascii"); // 22-byte sample name
+  buf.writeUInt16BE(SAMPLE_WORDS, s + 22); // length in words
+  buf[s + 24] = 0; // finetune
+  buf[s + 25] = 64; // volume (max)
+  buf.writeUInt16BE(0, s + 26); // repeat point (words)
+  buf.writeUInt16BE(SAMPLE_WORDS, s + 28); // repeat length → loops forever
+
+  buf[950] = 4; // song length: 4 orders
+  buf[951] = 0x7f; // restart byte
+  // Order table at 952 stays zeroed → every order points to pattern 0.
+  buf.write("M.K.", 1080, "ascii"); // signature → 4 channels, 31 samples
+
+  // Pattern 0: retrigger sample 1 at note C-2 (period 428) on channel 0
+  // every 16 rows so audio keeps flowing for the whole pattern.
+  const PERIOD = 428;
+  for (let row = 0; row < 64; row += 16) {
+    const off = HEADER_SIZE + row * 4 * 4; // row, channel 0
+    buf[off] = (1 & 0xf0) | ((PERIOD >> 8) & 0x0f);
+    buf[off + 1] = PERIOD & 0xff;
+    buf[off + 2] = (1 & 0x0f) << 4; // low nibble of sample number
+    buf[off + 3] = 0x00; // no effect
+  }
+
+  // Sample data: a signed 8-bit square wave (+64 / -64) → audible tone.
+  const sampBase = HEADER_SIZE + PATTERN_SIZE;
+  for (let i = 0; i < sampleBytes; i++) {
+    buf[sampBase + i] = i < sampleBytes / 2 ? 0x40 : 0xc0;
+  }
+  return buf;
+}
+
+const MOD_FIXTURE = buildAudibleMod();
+
 // Regression for https://github.com/no42-org/CoolModFiles/issues/11 plus
 // the follow-up "clock advances but no audio reaches the speakers" case
 // the prior version of this test couldn't catch.
@@ -86,6 +143,16 @@ test("audio reaches destination after user starts playback", async ({
       return origConnect.call(this, target, output, input) as AudioNode;
     } as typeof AudioNode.prototype.connect;
   });
+
+  // Serve the deterministic fixture for whichever random modarchive id the
+  // splash path resolves to, so the worklet always gets a decodable module.
+  await page.route(/api\.modarchive\.org\/downloads\.php/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/octet-stream",
+      body: MOD_FIXTURE,
+    })
+  );
 
   await page.goto("/");
 
