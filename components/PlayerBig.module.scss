@@ -85,7 +85,8 @@
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  flex-direction: column;
+  flex-direction: row;
+  gap: 15px;
 
   svg {
     margin-left: -15px;
@@ -95,11 +96,6 @@
     &:active:hover {
       opacity: 0.7;
     }
-  }
-  .likeButton {
-    // border:1px white solid;
-    // background-color: white;
-    margin-top: 15px;
   }
 }
 
