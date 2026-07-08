@@ -27,11 +27,14 @@
 import {
   tfmxLocal,
   tfmxSingleLocal,
-  tfmxSingleExt,
   type TfmxLocalSource,
   type TfmxSingleLocalSource,
 } from "../sources";
-import { parseHalfName, type HalfKind } from "../../lib/tfmx/pairs";
+import {
+  parseHalfName,
+  parseSingleName,
+  type HalfKind,
+} from "../../lib/tfmx/pairs";
 
 type ParsedHalf = {
   kind: HalfKind;
@@ -66,14 +69,12 @@ export function detectTfmxPairs(files: File[]): DetectResult {
     // Single-file libtfmx formats are claimed before the remainingFiles
     // push, so they never fall through to the isModuleFile pipeline (which
     // excludes them by design) and get silently dropped. A single file is
-    // immediately playable, never `unpaired`. A file that is ALSO a pair
-    // half (e.g. the prefix-Amiga `mdat.fc` whose base ends in a single-file
-    // token) is NOT a single — pair detection takes precedence, matching the
-    // library search endpoint. Hence the `!parseHalfName` guard.
-    const singleExt = tfmxSingleExt(file.name);
-    if (singleExt && !parseHalfName(file.name)) {
-      const base = file.name.slice(0, file.name.length - singleExt.length);
-      singles.push(tfmxSingleLocal(file, base, singleExt));
+    // immediately playable, never `unpaired`. Classification (including
+    // pair-half precedence — `mdat.fc` is a half, not a single) is
+    // canonical in parseSingleName, shared with the library endpoints.
+    const single = parseSingleName(file.name);
+    if (single) {
+      singles.push(tfmxSingleLocal(file, single.base, single.ext));
       continue;
     }
     const half = parseHalf(file);

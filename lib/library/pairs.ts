@@ -17,14 +17,11 @@
 
 import fs from "fs/promises";
 import path from "path";
-import { parseHalfName } from "../tfmx/pairs";
+import { parseHalfName, parseSingleName } from "../tfmx/pairs";
 // Explicit `./index` rather than `.` — keeps intent unambiguous and
 // guards against a future barrel re-export from `lib/library/index.ts`
 // reaching back into this module and forming a cycle.
 import { MAX_DEPTH } from "./index";
-// components/sources is a leaf module (no imports back into lib), so this
-// direct import can't form a cycle — unlike the `./index` barrel above.
-import { tfmxSingleExt } from "../../components/sources";
 
 export type TfmxPairEntry = {
   base: string; // case-preserved from the music-data half
@@ -88,21 +85,18 @@ export function detectPairsInDir(entries: DirEntry[]): TfmxPairEntry[] {
 /**
  * Single-file libtfmx modules in a directory's entry list. These are
  * self-contained (no sample half) and NOT run through pair-matching —
- * which would drop them as orphans. Deliberately excludes the ambiguous
- * .mdat/.tfm/.tfmx names (handled by the pair path). A file that is also a
- * pair half (e.g. a prefix-Amiga `mdat.fc` whose base ends in a single-file
- * token) is excluded via the `parseHalfName` guard so it isn't listed both
- * here AND in `detectPairsInDir` — pair detection takes precedence, matching
- * the search endpoint. Sorted by base.
+ * which would drop them as orphans. Classification (including the
+ * pair-half precedence rule that keeps a `mdat.fc` out of the singles)
+ * is canonical in `parseSingleName` — shared with the search endpoint
+ * and the Local-drop detector. Sorted by base.
  */
 export function detectSinglesInDir(entries: DirEntry[]): TfmxSingleEntry[] {
   const out: TfmxSingleEntry[] = [];
   for (const e of entries) {
     if (!e.isFile) continue;
-    const ext = tfmxSingleExt(e.name);
-    if (!ext) continue;
-    if (parseHalfName(e.name)) continue; // it's a pair half — not a single
-    out.push({ base: e.name.slice(0, e.name.length - ext.length), name: e.name, ext });
+    const parsed = parseSingleName(e.name);
+    if (!parsed) continue;
+    out.push({ base: parsed.base, name: e.name, ext: parsed.ext });
   }
   out.sort((a, b) => a.base.localeCompare(b.base));
   return out;

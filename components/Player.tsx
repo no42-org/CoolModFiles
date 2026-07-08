@@ -169,12 +169,10 @@ type LibraryListing = {
 async function pickNextInFolder(
   source: LibrarySource | TfmxLibrarySource | TfmxSingleLibrarySource
 ): Promise<Source | null> {
+  // Only tfmx-library carries its path under a different field name;
+  // library and tfmx-single-library both use `path`.
   const currentPath =
-    source.type === "library"
-      ? source.path
-      : source.type === "tfmx-library"
-        ? source.tfxPath
-        : source.path;
+    source.type === "tfmx-library" ? source.tfxPath : source.path;
   const lastSlash = currentPath.lastIndexOf("/");
   const parentDir = lastSlash >= 0 ? currentPath.slice(0, lastSlash) : "";
   const currentBasename = currentPath.slice(lastSlash + 1);

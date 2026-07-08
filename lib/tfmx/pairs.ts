@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-// Pure-string TFMX-half parser shared by the client pair detector
-// (components/local/tfmx-pairs.ts) and the server library walker
-// (lib/library/pairs.ts). Lives here because the client module imports
-// browser-only `File` types — the server cannot import from it directly.
+// Pure-string TFMX name parsers shared by the client pair detector
+// (components/local/tfmx-pairs.ts), the server library walker
+// (lib/library/pairs.ts), and the search endpoint. Lives here because
+// the client module imports browser-only `File` types — the server
+// cannot import from it directly.
+
+import { tfmxSingleExt } from "../../components/sources";
 
 export type HalfKind = "tfx" | "sam";
 
@@ -37,4 +40,26 @@ export function parseHalfName(name: string): ParsedHalfName | null {
   if (lower.startsWith("smpl.")) return result("sam", name.slice(5));
 
   return null;
+}
+
+export type ParsedSingleName = {
+  base: string; // filename minus the recognised extension, case-preserved
+  ext: string; // matched extension, lower-case incl. dot
+};
+
+/**
+ * Parse a single-file libtfmx module name (Hippel TFMX / Future Composer
+ * — see TFMX_SINGLE_EXTENSIONS). Returns null when the name doesn't carry
+ * a single-file extension, OR when it is ALSO a pair half (e.g. the
+ * prefix-Amiga `mdat.fc`, whose base ends in a single-file token) — pair
+ * detection takes precedence everywhere, otherwise the same file would be
+ * mis-split on local drop and double-listed by the library endpoints.
+ * This is the ONE definition of that invariant; the Library listing,
+ * search, and Local-drop detectors all call it.
+ */
+export function parseSingleName(name: string): ParsedSingleName | null {
+  const ext = tfmxSingleExt(name);
+  if (!ext) return null;
+  if (parseHalfName(name)) return null; // pair half — never a single
+  return { base: name.slice(0, name.length - ext.length), ext };
 }
