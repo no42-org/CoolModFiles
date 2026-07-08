@@ -28,10 +28,14 @@
 import { looksLikeAhx } from "./ahx-magic";
 import { mimeForBuffer } from "./recording-magic";
 
+// TFMX engine input. Pairs (Huelsbeck) carry both halves; single-file
+// formats (Hippel / Future Composer) carry only `tfx` plus `ext` so the
+// worklet can name the MEMFS file with the real extension.
 export type TfmxPair = {
   tfx: ArrayBuffer | Uint8Array;
-  sam: ArrayBuffer | Uint8Array;
+  sam?: ArrayBuffer | Uint8Array;
   base?: string;
+  ext?: string;
 };
 
 export type AudioPlayerConfig = ChiptuneConfig;
@@ -49,11 +53,13 @@ type EventName =
 type Handler = (payload?: unknown) => void;
 
 function isTfmxPair(input: unknown): input is TfmxPair {
+  // Route to the TFMX engine on the presence of `tfx` alone — pairs carry
+  // `sam` too, single-file formats don't. No libopenmpt/AHX/PCM input
+  // (a bare ArrayBuffer) has a `tfx` property, so this never mis-routes.
   return (
     typeof input === "object" &&
     input !== null &&
-    "tfx" in input &&
-    "sam" in input
+    "tfx" in input
   );
 }
 
@@ -636,8 +642,14 @@ export class AudioPlayer {
               cmd: "play",
               val: {
                 tfx: input.tfx,
+                // `sam` is absent for single-file formats; the worklet
+                // branches on its presence. `ext` (e.g. ".fc") names the
+                // single-file MEMFS file so libtfmx doesn't hunt for a
+                // phantom ".sam" sidecar. Both undefined for a plain pair
+                // with no ext, which the worklet treats as the pair path.
                 sam: input.sam,
                 base: input.base ?? "song",
+                ext: input.ext,
               },
             });
           })

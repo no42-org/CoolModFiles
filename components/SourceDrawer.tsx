@@ -19,6 +19,8 @@ import type {
   LocalSource,
   TfmxLocalSource,
   TfmxLibrarySource,
+  TfmxSingleLocalSource,
+  TfmxSingleLibrarySource,
 } from "./sources";
 import type { FavoriteTrack } from "./LikedMod";
 import type { ModItem } from "../lib/modarchive/types";
@@ -38,7 +40,9 @@ type AmigaModel = "off" | "a500" | "a1200";
 type LibraryProps = {
   currentPath: string;
   setCurrentPath: React.Dispatch<React.SetStateAction<string>>;
-  onPlay: (source: LibrarySource | TfmxLibrarySource) => void;
+  onPlay: (
+    source: LibrarySource | TfmxLibrarySource | TfmxSingleLibrarySource
+  ) => void;
 };
 
 type LocalProps = {
@@ -46,7 +50,13 @@ type LocalProps = {
   setPickedFiles: React.Dispatch<React.SetStateAction<File[]>>;
   pickedTfmxPairs: TfmxLocalSource[];
   setPickedTfmxPairs: React.Dispatch<React.SetStateAction<TfmxLocalSource[]>>;
-  onPlay: (source: LocalSource | TfmxLocalSource) => void;
+  pickedTfmxSingles: TfmxSingleLocalSource[];
+  setPickedTfmxSingles: React.Dispatch<
+    React.SetStateAction<TfmxSingleLocalSource[]>
+  >;
+  onPlay: (
+    source: LocalSource | TfmxLocalSource | TfmxSingleLocalSource
+  ) => void;
 };
 
 type FavoritesProps = {

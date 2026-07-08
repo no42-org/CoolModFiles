@@ -28,6 +28,7 @@ import {
   type LibrarySource,
   type TfmxLocalSource,
   type TfmxLibrarySource,
+  type TfmxSingleLocalSource,
   type TfmxBuffers,
 } from "./sources";
 import type { FavoriteTrack } from "./LikedMod";
@@ -271,6 +272,15 @@ async function pickRandomNext(
         return null;
       }
     }
+    case "tfmx-single-local":
+    case "tfmx-single-library":
+      // Single-file libtfmx formats are reachable via browse/search only;
+      // they are deliberately excluded from the random feed (the
+      // tfmx-random endpoint's {tfxPath,samPath} contract can't represent
+      // a single file — see add-tfmx-single-file-formats design Decision 5).
+      // Folder-sequential auto-advance for singles is a follow-up; for now
+      // end-of-track does not chain to a sibling.
+      return null;
     default: {
       // Exhaustiveness assertion: adding a new arm to Source without
       // updating this switch fails the build here.
@@ -344,6 +354,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     local: { items: [], current: -1 },
     "tfmx-local": { items: [], current: -1 },
     "tfmx-library": { items: [], current: -1 },
+    "tfmx-single-local": { items: [], current: -1 },
+    "tfmx-single-library": { items: [], current: -1 },
   });
   const playGenerationRef = React.useRef(0);
   const [repeat, setRepeat] = React.useState(false);
@@ -400,6 +412,9 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const [pickedFiles, setPickedFiles] = React.useState<File[]>([]);
   const [pickedTfmxPairs, setPickedTfmxPairs] = React.useState<
     TfmxLocalSource[]
+  >([]);
+  const [pickedTfmxSingles, setPickedTfmxSingles] = React.useState<
+    TfmxSingleLocalSource[]
   >([]);
   const [libraryPath, setLibraryPath] = React.useState("");
   const [libraryAvailable, setLibraryAvailable] = React.useState(false);
@@ -575,7 +590,10 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
       // the player title and browser tab.
       const cur = playingSourceRef.current;
       const isTfmx =
-        cur?.type === "tfmx-local" || cur?.type === "tfmx-library";
+        cur?.type === "tfmx-local" ||
+        cur?.type === "tfmx-library" ||
+        cur?.type === "tfmx-single-local" ||
+        cur?.type === "tfmx-single-library";
       const fallback = isTfmx ? cur.base : "";
       // Final defense for the "engine reports no title AND pair has empty
       // base" case (e.g. random TFMX-library pair whose disk base parses
@@ -840,9 +858,21 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         errorBurstRef.current.count = 0;
         errorBurstRef.current.firstAt = 0;
         setLoading(false);
-        if (source.type === "tfmx-local" || source.type === "tfmx-library") {
+        if (
+          source.type === "tfmx-local" ||
+          source.type === "tfmx-library" ||
+          source.type === "tfmx-single-local" ||
+          source.type === "tfmx-single-library"
+        ) {
           const b = buffer as TfmxBuffers;
-          player.play({ tfx: b.tfx, sam: b.sam, base: source.base });
+          // `sam` is undefined for single-file sources; `ext` (present only
+          // on the single-file variants) drives the worklet MEMFS filename.
+          player.play({
+            tfx: b.tfx,
+            sam: b.sam,
+            base: source.base,
+            ext: "ext" in source ? source.ext : undefined,
+          });
         } else {
           player.play(buffer as ArrayBuffer);
         }
@@ -1041,6 +1071,25 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
           );
           break;
         }
+        case "tfmx-single-local": {
+          triggerDownload(
+            window.URL.createObjectURL(source.file),
+            source.file.name
+          );
+          break;
+        }
+        case "tfmx-single-library": {
+          const res = await fetch(
+            `/api/library/file?path=${encodeURIComponent(source.path)}`
+          );
+          if (!res.ok) throw new Error(`library fetch failed: ${res.status}`);
+          const blob = await res.blob();
+          triggerDownload(
+            window.URL.createObjectURL(blob),
+            basename(source.path)
+          );
+          break;
+        }
       }
     } catch (error) {
       console.log(error);
@@ -1210,6 +1259,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
               setPickedFiles,
               pickedTfmxPairs,
               setPickedTfmxPairs,
+              pickedTfmxSingles,
+              setPickedTfmxSingles,
               onPlay: playFromDrawer,
             }}
             favoritesProps={{

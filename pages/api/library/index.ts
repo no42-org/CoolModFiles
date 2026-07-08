@@ -15,12 +15,18 @@ import {
   isModuleFile,
   resolveSafe,
 } from "../../../lib/library";
-import { detectPairsInDir, type TfmxPairEntry } from "../../../lib/library/pairs";
+import {
+  detectPairsInDir,
+  detectSinglesInDir,
+  type TfmxPairEntry,
+  type TfmxSingleEntry,
+} from "../../../lib/library/pairs";
 
 type ListingResponse = {
   dirs: string[];
   files: string[];
   pairs: TfmxPairEntry[];
+  singles: TfmxSingleEntry[];
   truncated: boolean;
 };
 type ErrorResponse = { error: string };
@@ -65,9 +71,13 @@ export default async function handler(
     else if (e.isFile()) fileEntries.push({ name: e.name, isFile: true });
   }
   const pairs = detectPairsInDir(fileEntries);
-  // MOD allowlist excludes TFMX-half extensions, so no double-filter is
-  // needed to keep paired halves out of `files`. Orphan halves are
-  // naturally excluded too — they have non-MOD extensions.
+  // Single-file libtfmx modules (Hippel / Future Composer). Their
+  // extensions are not in the MOD allowlist, so they are naturally absent
+  // from `files` below — no double-filter needed.
+  const singles = detectSinglesInDir(fileEntries);
+  // MOD allowlist excludes TFMX-half AND single-file extensions, so no
+  // double-filter is needed to keep those out of `files`. Orphan halves
+  // are naturally excluded too — they have non-MOD extensions.
   const files = fileEntries
     .filter((f) => isModuleFile(f.name))
     .map((f) => f.name);
@@ -75,16 +85,21 @@ export default async function handler(
   files.sort();
 
   // Truncation policy per design.md Open Questions: favour navigation
-  // (dirs) > content groups (pairs) > individual files.
-  const total = dirs.length + pairs.length + files.length;
+  // (dirs) > content groups (pairs, singles) > individual files.
+  const total = dirs.length + pairs.length + singles.length + files.length;
   const truncated = total > MAX_LISTING;
 
   const dirsOut = dirs.slice(0, MAX_LISTING);
   const remainingForPairs = Math.max(0, MAX_LISTING - dirsOut.length);
   const pairsOut = pairs.slice(0, remainingForPairs);
-  const remainingForFiles = Math.max(
+  const remainingForSingles = Math.max(
     0,
     MAX_LISTING - dirsOut.length - pairsOut.length
+  );
+  const singlesOut = singles.slice(0, remainingForSingles);
+  const remainingForFiles = Math.max(
+    0,
+    MAX_LISTING - dirsOut.length - pairsOut.length - singlesOut.length
   );
   const filesOut = files.slice(0, remainingForFiles);
 
@@ -92,6 +107,7 @@ export default async function handler(
     dirs: dirsOut,
     files: filesOut,
     pairs: pairsOut,
+    singles: singlesOut,
     truncated,
   });
 }

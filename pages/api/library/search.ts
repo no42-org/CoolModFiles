@@ -17,6 +17,7 @@ import {
   MAX_DEPTH,
   MAX_SEARCH_RESULTS,
   isModuleFile,
+  tfmxSingleExt,
 } from "../../../lib/library";
 import { detectPairsInDir } from "../../../lib/library/pairs";
 
@@ -27,7 +28,13 @@ type TfmxResult = {
   samPath: string;
   base: string;
 };
-type SearchResult = ModResult | TfmxResult;
+type TfmxSingleResult = {
+  kind: "tfmx-single";
+  path: string;
+  base: string;
+  ext: string;
+};
+type SearchResult = ModResult | TfmxResult | TfmxSingleResult;
 
 async function walk(
   dir: string,
@@ -84,6 +91,21 @@ async function walk(
     // Sample halves of detected pairs were already emitted via their
     // music-data sibling; skip to avoid double-listing.
     if (pairedHalves.has(f.name)) continue;
+    // Single-file libtfmx modules match on their base (filename minus the
+    // recognised extension), mirroring the pair match-on-base rule (D8).
+    const singleExt = tfmxSingleExt(f.name);
+    if (singleExt) {
+      const base = f.name.slice(0, f.name.length - singleExt.length);
+      if (base.toLowerCase().includes(query)) {
+        results.push({
+          kind: "tfmx-single",
+          path: prefix + f.name,
+          base,
+          ext: singleExt,
+        });
+      }
+      continue;
+    }
     if (!isModuleFile(f.name)) continue;
     if (f.name.toLowerCase().includes(query)) {
       results.push({ kind: "mod", path: prefix + f.name });

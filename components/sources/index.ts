@@ -6,11 +6,14 @@
 //   { type: "local",         file: File }
 //   { type: "tfmx-local",    tfx: File, sam: File, base: string }
 //   { type: "tfmx-library",  tfxPath, samPath, base }
+//   { type: "tfmx-single-local",   file: File, base, ext }
+//   { type: "tfmx-single-library", path: string, base, ext }
 //
-// Two-buffer arms (`tfmx-local`, `tfmx-library`) produce `{ tfx, sam }`;
-// the rest produce a single ArrayBuffer. libtfmx auto-discovers the
-// sample bank by filename from the music-data file's path, which is
-// why TFMX always travels as a pair.
+// Two-buffer pair arms (`tfmx-local`, `tfmx-library`) produce `{ tfx, sam }`;
+// single-file libtfmx arms (`tfmx-single-*`) produce `{ tfx }` (no sample
+// half); the rest produce a single ArrayBuffer. Huelsbeck TFMX ships as a
+// pair (music data + separate sample bank); Hippel TFMX / Future Composer
+// are self-contained single files that libtfmx content-detects.
 
 export const MODULE_EXTENSIONS = [
   ".mod",
@@ -49,6 +52,29 @@ export const AHX_EXTENSIONS = [".ahx", ".thx"] as const;
 // than general audio.
 export const RECORDING_EXTENSIONS = [".mp3", ".ogg", ".flac"] as const;
 
+// Single-file libtfmx formats: Jochen Hippel TFMX (incl. MCMD) and Future
+// Composer. Unlike the Huelsbeck pair formats these are self-contained —
+// no separate sample bank — so they route to the TFMX engine as a lone
+// file. Extension list mirrors vendor/libtfmxaudiodecoder/README.md:55-57.
+// The ambiguous `.mdat`, `.tfm`, `.tfmx` names overlap the pair world (a
+// lone `.mdat` could be an orphan Huelsbeck half OR a complete Hippel
+// file — only a content probe can tell) and are deliberately EXCLUDED
+// here; widening them is a follow-up change. Deliberately NOT folded into
+// isModuleFile: single-file TFMX is a distinct engine, and isModuleFile
+// implies libopenmpt/AHX/PCM routing at AudioPlayer.play().
+export const TFMX_SINGLE_EXTENSIONS = [
+  ".fc",
+  ".fc3",
+  ".fc4",
+  ".fc13",
+  ".fc14",
+  ".smod",
+  ".hip",
+  ".hipc",
+  ".hip7",
+  ".mcmd",
+] as const;
+
 export function isModuleFile(filename: string): boolean {
   const lower = filename.toLowerCase();
   return (
@@ -56,6 +82,18 @@ export function isModuleFile(filename: string): boolean {
     AHX_EXTENSIONS.some((ext) => lower.endsWith(ext)) ||
     RECORDING_EXTENSIONS.some((ext) => lower.endsWith(ext))
   );
+}
+
+// True for single-file libtfmx formats (see TFMX_SINGLE_EXTENSIONS).
+// Returns the matched extension (lower-case, incl. dot) or null so callers
+// can carry it onto the Source variant for the worklet MEMFS filename.
+export function tfmxSingleExt(filename: string): string | null {
+  const lower = filename.toLowerCase();
+  return TFMX_SINGLE_EXTENSIONS.find((ext) => lower.endsWith(ext)) ?? null;
+}
+
+export function isTfmxSingleFile(filename: string): boolean {
+  return tfmxSingleExt(filename) !== null;
 }
 
 export type ModArchiveSource = { type: "modarchive"; id: number };
@@ -73,13 +111,30 @@ export type TfmxLibrarySource = {
   samPath: string;
   base: string;
 };
+// Single-file libtfmx sources (Hippel / Future Composer). `ext` is the
+// source's real extension (lower-case, incl. dot) — carried so the worklet
+// writes the MEMFS file under it instead of the pair-only `.tfx` name.
+export type TfmxSingleLocalSource = {
+  type: "tfmx-single-local";
+  file: File;
+  base: string;
+  ext: string;
+};
+export type TfmxSingleLibrarySource = {
+  type: "tfmx-single-library";
+  path: string;
+  base: string;
+  ext: string;
+};
 
 export type Source =
   | ModArchiveSource
   | LibrarySource
   | LocalSource
   | TfmxLocalSource
-  | TfmxLibrarySource;
+  | TfmxLibrarySource
+  | TfmxSingleLocalSource
+  | TfmxSingleLibrarySource;
 export type SourceType = Source["type"];
 export type SourceHistoryBuckets = Record<
   SourceType,
@@ -105,8 +160,19 @@ export const tfmxLibrary = (
   samPath: string,
   base: string
 ): TfmxLibrarySource => ({ type: "tfmx-library", tfxPath, samPath, base });
+export const tfmxSingleLocal = (
+  file: File,
+  base: string,
+  ext: string
+): TfmxSingleLocalSource => ({ type: "tfmx-single-local", file, base, ext });
+export const tfmxSingleLibrary = (
+  path: string,
+  base: string,
+  ext: string
+): TfmxSingleLibrarySource => ({ type: "tfmx-single-library", path, base, ext });
 
-export type TfmxBuffers = { tfx: ArrayBuffer; sam: ArrayBuffer };
+// Pair arms fill both `tfx` and `sam`; single-file arms fill only `tfx`.
+export type TfmxBuffers = { tfx: ArrayBuffer; sam?: ArrayBuffer };
 export type SourceBuffer = ArrayBuffer | TfmxBuffers;
 
 export async function getBuffer(source: Source): Promise<SourceBuffer> {
@@ -167,6 +233,17 @@ export async function getBuffer(source: Source): Promise<SourceBuffer> {
       ]);
       return { tfx, sam };
     }
+    case "tfmx-single-local":
+      // Single self-contained file — one buffer, no sample half.
+      return { tfx: await source.file.arrayBuffer() };
+    case "tfmx-single-library": {
+      const res = await fetch(
+        `/api/library/file?path=${encodeURIComponent(source.path)}`
+      );
+      if (!res.ok)
+        throw new Error(`library tfmx-single fetch failed: ${res.status}`);
+      return { tfx: await res.arrayBuffer() };
+    }
   }
 }
 
@@ -179,6 +256,8 @@ export function getPermalink(source: Source): string | null {
     case "local":
     case "tfmx-local":
     case "tfmx-library":
+    case "tfmx-single-local":
+    case "tfmx-single-library":
       return null;
   }
 }
@@ -204,6 +283,8 @@ export function getEmbedUrl(source: Source, domain?: string): string | null {
     case "local":
     case "tfmx-local":
     case "tfmx-library":
+    case "tfmx-single-local":
+    case "tfmx-single-library":
       // Embed for TFMX is out of scope per add-tfmx-library-playback.
       return null;
   }
@@ -236,5 +317,9 @@ export function sourceKey(source: Source): string {
       return `tfmx-local:${source.base}:${source.tfx.size}:${source.sam.size}`;
     case "tfmx-library":
       return `tfmx-library:${source.tfxPath}:${source.samPath}`;
+    case "tfmx-single-local":
+      return `tfmx-single-local:${source.base}:${source.file.size}:${source.file.lastModified}`;
+    case "tfmx-single-library":
+      return `tfmx-single-library:${source.path}`;
   }
 }
