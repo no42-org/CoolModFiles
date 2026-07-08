@@ -14,6 +14,11 @@
  * filename, so we mount both buffers in MEMFS before calling tfx_load.
  */
 
+// MUST come before the Emscripten glue import: Firefox's
+// AudioWorkletGlobalScope has no TextDecoder (spec-compliant) and the
+// glue constructs one unguarded during init — see the polyfill's header
+// and issue #89.
+import './worklet-textdecoder-polyfill.js'
 import createLibtfmx from './libtfmx.worklet.js'
 
 // Module instance (libtfmx Emscripten Module). Populated asynchronously.
