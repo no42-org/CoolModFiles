@@ -54,7 +54,7 @@
     "eslint-config-next": "^16.2.9",
     "prettier": "^3.9.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "postcss": "^8.5.10"
