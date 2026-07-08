@@ -19,6 +19,7 @@ import {
   isModuleFile,
 } from "../../../lib/library";
 import { detectPairsInDir } from "../../../lib/library/pairs";
+import { parseSingleName } from "../../../lib/tfmx/pairs";
 
 type ModResult = { kind: "mod"; path: string };
 type TfmxResult = {
@@ -27,7 +28,13 @@ type TfmxResult = {
   samPath: string;
   base: string;
 };
-type SearchResult = ModResult | TfmxResult;
+type TfmxSingleResult = {
+  kind: "tfmx-single";
+  path: string;
+  base: string;
+  ext: string;
+};
+type SearchResult = ModResult | TfmxResult | TfmxSingleResult;
 
 async function walk(
   dir: string,
@@ -84,6 +91,23 @@ async function walk(
     // Sample halves of detected pairs were already emitted via their
     // music-data sibling; skip to avoid double-listing.
     if (pairedHalves.has(f.name)) continue;
+    // Single-file libtfmx modules match on their base (filename minus the
+    // recognised extension), mirroring the pair match-on-base rule (D8).
+    // Classification (including pair-half precedence — an orphan `mdat.fc`
+    // is a half, not a single, and would 404 at the file endpoint anyway)
+    // is canonical in parseSingleName, shared with listing and Local drop.
+    const single = parseSingleName(f.name);
+    if (single) {
+      if (single.base.toLowerCase().includes(query)) {
+        results.push({
+          kind: "tfmx-single",
+          path: prefix + f.name,
+          base: single.base,
+          ext: single.ext,
+        });
+      }
+      continue;
+    }
     if (!isModuleFile(f.name)) continue;
     if (f.name.toLowerCase().includes(query)) {
       results.push({ kind: "mod", path: prefix + f.name });

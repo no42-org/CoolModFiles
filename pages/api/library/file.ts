@@ -13,7 +13,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs/promises";
 import path from "path";
 import { createReadStream } from "fs";
-import { LIBRARY_ROOT, isModuleFile, resolveSafe } from "../../../lib/library";
+import {
+  LIBRARY_ROOT,
+  isModuleFile,
+  isTfmxSingleFile,
+  resolveSafe,
+} from "../../../lib/library";
 import { parseHalfName } from "../../../lib/tfmx/pairs";
 import { detectPairsInDir } from "../../../lib/library/pairs";
 
@@ -83,8 +88,13 @@ export default async function handler(
   const basename = path.basename(filepath);
   const isMod = isModuleFile(filepath);
   const isTfmxHalf = parseHalfName(basename) !== null;
+  // Single-file libtfmx formats (Hippel / Future Composer) are complete
+  // modules — served without a partner check, unlike pair halves. This is
+  // a closed allowlist (TFMX_SINGLE_EXTENSIONS) and excludes the ambiguous
+  // .mdat/.tfm/.tfmx names, so the orphan-half perimeter is not weakened.
+  const isTfmxSingle = isTfmxSingleFile(basename);
 
-  if (!isMod && !isTfmxHalf) {
+  if (!isMod && !isTfmxHalf && !isTfmxSingle) {
     return res.status(404).json({ error: "not_found" });
   }
 

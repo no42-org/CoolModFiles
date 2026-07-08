@@ -3,28 +3,35 @@ import styles from "./LibraryCatalog.module.scss";
 import {
   library,
   tfmxLibrary,
+  tfmxSingleLibrary,
   type LibrarySource,
   type TfmxLibrarySource,
+  type TfmxSingleLibrarySource,
 } from "../sources";
 import { useFilenameStyle } from "../../lib/filename/context";
 
 type PairEntry = { base: string; tfx: string; sam: string };
+type SingleEntry = { base: string; name: string; ext: string };
 
 type Listing = {
   dirs: string[];
   files: string[];
   pairs?: PairEntry[];
+  singles?: SingleEntry[];
   truncated?: boolean;
 };
 
 type SearchResult =
   | { kind: "mod"; path: string }
-  | { kind: "tfmx"; tfxPath: string; samPath: string; base: string };
+  | { kind: "tfmx"; tfxPath: string; samPath: string; base: string }
+  | { kind: "tfmx-single"; path: string; base: string; ext: string };
 
 type LibraryCatalogProps = {
   currentPath: string;
   setCurrentPath: React.Dispatch<React.SetStateAction<string>>;
-  onPlay: (source: LibrarySource | TfmxLibrarySource) => void;
+  onPlay: (
+    source: LibrarySource | TfmxLibrarySource | TfmxSingleLibrarySource
+  ) => void;
 };
 
 function joinPath(parts: string[]): string {
@@ -119,6 +126,20 @@ function LibraryCatalog({
                   </li>
                 );
               }
+              if (r.kind === "tfmx-single") {
+                return (
+                  <li
+                    key={`tfmx-single:${r.path}`}
+                    className={`${styles.row} ${styles.file}`}
+                    onClick={() =>
+                      onPlay(tfmxSingleLibrary(r.path, r.base, r.ext))
+                    }
+                    title={r.path}
+                  >
+                    {render(r.path.slice(r.path.lastIndexOf("/") + 1))}
+                  </li>
+                );
+              }
               return (
                 <li
                   key={`tfmx:${r.tfxPath}`}
@@ -139,10 +160,12 @@ function LibraryCatalog({
   }
 
   const pairs = listing?.pairs ?? [];
+  const singles = listing?.singles ?? [];
   const isEmpty =
     !!listing &&
     listing.dirs.length === 0 &&
     pairs.length === 0 &&
+    singles.length === 0 &&
     listing.files.length === 0;
 
   return (
@@ -204,6 +227,24 @@ function LibraryCatalog({
               title={`${p.tfx} + ${p.sam}`}
             >
               {renderPair(p.base)}
+            </li>
+          ))}
+          {singles.map((s) => (
+            <li
+              key={`s:${s.name}`}
+              className={`${styles.row} ${styles.file}`}
+              onClick={() =>
+                onPlay(
+                  tfmxSingleLibrary(
+                    joinPath([...segments, s.name]),
+                    s.base,
+                    s.ext
+                  )
+                )
+              }
+              title={s.name}
+            >
+              {render(s.name)}
             </li>
           ))}
           {listing.files.map((f) => (

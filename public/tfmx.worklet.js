@@ -259,30 +259,39 @@ class TFX extends AudioWorkletProcessor {
 		// Reset paused flag so a pause→stop→play sequence isn't stuck on silence.
 		this.paused = false
 
-		// AudioPlayer.play() posts {tfx, sam} as ArrayBuffer (structured
-		// clone preserves the type); we only need the ArrayBuffer→Uint8Array
-		// wrap for MEMFS writeFile.
+		// AudioPlayer.play() posts {tfx, sam?, base, ext?} as ArrayBuffer
+		// (structured clone preserves the type); we only need the
+		// ArrayBuffer→Uint8Array wrap for MEMFS writeFile. `sam` is absent
+		// for single-file libtfmx formats (Hippel / Future Composer).
 		const tfxBytes = new Uint8Array(val?.tfx ?? new ArrayBuffer(0))
-		const samBytes = new Uint8Array(val?.sam ?? new ArrayBuffer(0))
+		const hasSam = val?.sam != null
+		const samBytes = hasSam ? new Uint8Array(val.sam) : null
 		// Sanitise to a filename-safe ASCII slug. libtfmx uses fopen
 		// internally; spaces and unicode in pair base-names (e.g. "Apidya - Load")
 		// would otherwise force quoting concerns. `|| 'song'` covers the
 		// undefined/null case; the replace cannot yield an empty string for
 		// any non-empty input, so no trailing fallback is needed.
 		const base = (val?.base || 'song').replace(/[^A-Za-z0-9_-]/g, '_')
+		// Music-data MEMFS extension. Pairs keep the historical `.tfx`.
+		// Single-file formats use their REAL extension (e.g. `.fc`, `.hipc`)
+		// so libtfmx's sample-sidecar guessing doesn't hunt for a phantom
+		// `.sam`. Validate the ext is a plain `.<alnum>` token before use;
+		// tfx_load still content-detects the actual format regardless.
+		const extRaw = typeof val?.ext === 'string' ? val.ext.toLowerCase() : ''
+		const musicExt = hasSam ? '.tfx' : (/^\.[a-z0-9]+$/.test(extRaw) ? extRaw : '.tfx')
 
 		const vdir = '/song'
 		try { M.FS.mkdir(vdir) } catch { /* exists from a previous play */ }
-		const vTfx = `${vdir}/${base}.tfx`
-		const vSam = `${vdir}/${base}.sam`
+		const vTfx = `${vdir}/${base}${musicExt}`
+		const vSam = hasSam ? `${vdir}/${base}.sam` : ''
 		// Record the paths BEFORE writing so a partial-success failure
 		// (vTfx written, vSam throws) is still cleaned up by the next
-		// _stop / _unlinkVirtual.
+		// _stop / _unlinkVirtual. Empty vSam is skipped by _unlinkVirtual.
 		this.lastTfx = vTfx
 		this.lastSam = vSam
 		try {
 			M.FS.writeFile(vTfx, tfxBytes)
-			M.FS.writeFile(vSam, samBytes)
+			if (hasSam) M.FS.writeFile(vSam, samBytes)
 		} catch (e) {
 			// Worklet-side console.* is silently dropped by some browsers
 			// (Safari/WebKit in particular). Surface diagnostics via the
@@ -291,7 +300,7 @@ class TFX extends AudioWorkletProcessor {
 			this.port.postMessage({
 				cmd: 'err',
 				val: 'ptr',
-				detail: `MEMFS writeFile failed: vTfx=${vTfx} vSam=${vSam} tfxLen=${tfxBytes.length} samLen=${samBytes.length} error=${e && e.message ? e.message : String(e)}`,
+				detail: `MEMFS writeFile failed: vTfx=${vTfx} vSam=${vSam || 'none'} tfxLen=${tfxBytes.length} samLen=${hasSam ? samBytes.length : 'none'} error=${e && e.message ? e.message : String(e)}`,
 			})
 			return
 		}
@@ -317,7 +326,7 @@ class TFX extends AudioWorkletProcessor {
 			this.port.postMessage({
 				cmd: 'err',
 				val: 'ptr',
-				detail: `tfx_load failed: vTfx=${vTfx} vSam=${vSam} tfxLen=${tfxBytes.length} samLen=${samBytes.length} returnedOk=${ok}`,
+				detail: `tfx_load failed: vTfx=${vTfx} vSam=${vSam || 'none'} tfxLen=${tfxBytes.length} samLen=${hasSam ? samBytes.length : 'none'} returnedOk=${ok}`,
 			})
 			this._stop()
 			return

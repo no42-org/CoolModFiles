@@ -10,7 +10,10 @@ import fs from "fs/promises";
 export {
   MODULE_EXTENSIONS,
   RECORDING_EXTENSIONS,
+  TFMX_SINGLE_EXTENSIONS,
   isModuleFile,
+  isTfmxSingleFile,
+  tfmxSingleExt,
 } from "../../components/sources";
 
 export const LIBRARY_ROOT: string | null = process.env.LIBRARY_ROOT || null;

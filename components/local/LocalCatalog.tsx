@@ -6,6 +6,7 @@ import {
   sourceKey,
   type LocalSource,
   type TfmxLocalSource,
+  type TfmxSingleLocalSource,
 } from "../sources";
 import { detectTfmxPairs } from "./tfmx-pairs";
 import { showToast } from "../../utils";
@@ -16,7 +17,11 @@ type LocalCatalogProps = {
   setPickedFiles: React.Dispatch<React.SetStateAction<File[]>>;
   pickedTfmxPairs: TfmxLocalSource[];
   setPickedTfmxPairs: React.Dispatch<React.SetStateAction<TfmxLocalSource[]>>;
-  onPlay: (source: LocalSource | TfmxLocalSource) => void;
+  pickedTfmxSingles: TfmxSingleLocalSource[];
+  setPickedTfmxSingles: React.Dispatch<
+    React.SetStateAction<TfmxSingleLocalSource[]>
+  >;
+  onPlay: (source: LocalSource | TfmxLocalSource | TfmxSingleLocalSource) => void;
 };
 
 function LocalCatalog({
@@ -24,6 +29,8 @@ function LocalCatalog({
   setPickedFiles,
   pickedTfmxPairs,
   setPickedTfmxPairs,
+  pickedTfmxSingles,
+  setPickedTfmxSingles,
   onPlay,
 }: LocalCatalogProps) {
   const { render, renderPair } = useFilenameStyle();
@@ -37,7 +44,7 @@ function LocalCatalog({
     // halves are reported via toast so the user knows to drop the
     // companion together.
     const all = Array.from(incoming);
-    const { pairs, remainingFiles, collisions, unpaired } =
+    const { pairs, singles, remainingFiles, collisions, unpaired } =
       detectTfmxPairs(all);
     const modules = remainingFiles.filter((f) => isModuleFile(f.name));
 
@@ -57,7 +64,8 @@ function LocalCatalog({
       showToast(`Unpaired TFMX half: ${names}${more} — drop the matching file together`);
     }
 
-    if (pairs.length === 0 && modules.length === 0) return;
+    if (pairs.length === 0 && singles.length === 0 && modules.length === 0)
+      return;
 
     if (modules.length > 0) {
       setPickedFiles((prev) => [...prev, ...modules]);
@@ -67,6 +75,13 @@ function LocalCatalog({
         // De-dup by sourceKey so the same pair dropped twice collapses.
         const existing = new Set(prev.map((p) => sourceKey(p)));
         const fresh = pairs.filter((p) => !existing.has(sourceKey(p)));
+        return fresh.length ? [...prev, ...fresh] : prev;
+      });
+    }
+    if (singles.length > 0) {
+      setPickedTfmxSingles((prev) => {
+        const existing = new Set(prev.map((s) => sourceKey(s)));
+        const fresh = singles.filter((s) => !existing.has(sourceKey(s)));
         return fresh.length ? [...prev, ...fresh] : prev;
       });
     }
@@ -90,7 +105,10 @@ function LocalCatalog({
     e.target.value = "";
   };
 
-  const isEmpty = pickedFiles.length === 0 && pickedTfmxPairs.length === 0;
+  const isEmpty =
+    pickedFiles.length === 0 &&
+    pickedTfmxPairs.length === 0 &&
+    pickedTfmxSingles.length === 0;
 
   return (
     <div className={styles.wrapper}>
@@ -105,7 +123,7 @@ function LocalCatalog({
         <div>Drop MOD, AHX, or TFMX files here</div>
         <div className={styles.dropHint}>
           .mod .xm .it .s3m .mptm .stm .mtm .669 .med .okt .ult .amf · .ahx
-          .thx · tfx+sam · mdat+smpl
+          .thx · tfx+sam · mdat+smpl · .fc .fc13 .fc14 .smod .hip .hipc .mcmd
         </div>
         <button
           className={styles.pickButton}
@@ -138,6 +156,16 @@ function LocalCatalog({
               title={`${pair.tfx.name} + ${pair.sam.name}`}
             >
               {renderPair(pair.base)}
+            </li>
+          ))}
+          {pickedTfmxSingles.map((s, idx) => (
+            <li
+              key={`tfmx-single:${sourceKey(s)}:${idx}`}
+              className={styles.row}
+              onClick={() => onPlay(s)}
+              title={s.file.name}
+            >
+              {render(s.file.name)}
             </li>
           ))}
           {pickedFiles.map((file, idx) => (

@@ -17,7 +17,7 @@
 
 import fs from "fs/promises";
 import path from "path";
-import { parseHalfName } from "../tfmx/pairs";
+import { parseHalfName, parseSingleName } from "../tfmx/pairs";
 // Explicit `./index` rather than `.` — keeps intent unambiguous and
 // guards against a future barrel re-export from `lib/library/index.ts`
 // reaching back into this module and forming a cycle.
@@ -27,6 +27,13 @@ export type TfmxPairEntry = {
   base: string; // case-preserved from the music-data half
   tfx: string; // half-filename within the listed directory (not a full path)
   sam: string;
+};
+
+// A single-file libtfmx module (Hippel / Future Composer) — no sample half.
+export type TfmxSingleEntry = {
+  base: string; // filename minus the recognised extension, case-preserved
+  name: string; // filename within the listed directory
+  ext: string; // matched extension, lower-case incl. dot
 };
 
 export type TfmxPairLocation = {
@@ -73,6 +80,26 @@ export function detectPairsInDir(entries: DirEntry[]): TfmxPairEntry[] {
   }
   pairs.sort((a, b) => a.base.localeCompare(b.base));
   return pairs;
+}
+
+/**
+ * Single-file libtfmx modules in a directory's entry list. These are
+ * self-contained (no sample half) and NOT run through pair-matching —
+ * which would drop them as orphans. Classification (including the
+ * pair-half precedence rule that keeps a `mdat.fc` out of the singles)
+ * is canonical in `parseSingleName` — shared with the search endpoint
+ * and the Local-drop detector. Sorted by base.
+ */
+export function detectSinglesInDir(entries: DirEntry[]): TfmxSingleEntry[] {
+  const out: TfmxSingleEntry[] = [];
+  for (const e of entries) {
+    if (!e.isFile) continue;
+    const parsed = parseSingleName(e.name);
+    if (!parsed) continue;
+    out.push({ base: parsed.base, name: e.name, ext: parsed.ext });
+  }
+  out.sort((a, b) => a.base.localeCompare(b.base));
+  return out;
 }
 
 /**
