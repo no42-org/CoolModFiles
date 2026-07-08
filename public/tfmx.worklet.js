@@ -309,9 +309,11 @@ class TFX extends AudioWorkletProcessor {
 		const ok = M.ccall('tfx_load', 'number', ['number', 'string', 'number'],
 			[this.decoder, vTfx, 0])
 		if (ok !== 1) {
-			// Common cause: file smaller than libtfmx's TFMX_PROBE_SIZE (0xb80).
-			// The Apidya-Load reference example hits this — captured in
-			// the tfmx-playback spec's "Undersized music-data file" scenario.
+			// tfx_load (libtfmx's init/load path) rejected the data.
+			// This is NOT related to TFMX_PROBE_SIZE (0xb80): that only gates
+			// the optional detect() probe for Hippel-style TFMX, not the
+			// init/load of Huelsbeck TFMX like the Apidya-Load reference
+			// example, which fails here for an unrelated reason.
 			this.port.postMessage({
 				cmd: 'err',
 				val: 'ptr',
