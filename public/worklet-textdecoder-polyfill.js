@@ -42,20 +42,42 @@ if (typeof TextDecoder === 'undefined') {
 				const c = b[i++]
 				if (c < 0x80) {
 					s += String.fromCharCode(c)
-				} else if (c < 0xe0) {
-					s += String.fromCharCode(((c & 0x1f) << 6) | (b[i++] & 0x3f))
-				} else if (c < 0xf0) {
-					s += String.fromCharCode(
-						((c & 0x0f) << 12) | ((b[i++] & 0x3f) << 6) | (b[i++] & 0x3f)
-					)
-				} else {
-					const cp =
-						((c & 0x07) << 18) |
-						((b[i++] & 0x3f) << 12) |
-						((b[i++] & 0x3f) << 6) |
-						(b[i++] & 0x3f)
+					continue
+				}
+				// Continuation-byte count claimed by the lead byte. 0x80–0xC1
+				// (bare continuations and C0/C1 overlongs) and 0xF8–0xFF are
+				// invalid leads.
+				const n = c < 0xc2 ? -1 : c < 0xe0 ? 1 : c < 0xf0 ? 2 : c < 0xf8 ? 3 : -1
+				// Validate the WHOLE sequence before consuming anything: every
+				// continuation byte must exist and be 0b10xxxxxx. On violation,
+				// emit U+FFFD for the lead byte alone and resynchronize at the
+				// next byte — matching the native decoder. Never swallow valid
+				// bytes: a Latin-1 title like "Läther" (4C E4 74 68 65 72) must
+				// decode to "L�ther", not eat the 't' and 'h'.
+				let ok = n > 0 && i + n <= b.length
+				for (let j = 0; ok && j < n; j++) ok = (b[i + j] & 0xc0) === 0x80
+				if (!ok) {
+					s += '�'
+					continue
+				}
+				let cp = c & (n === 1 ? 0x1f : n === 2 ? 0x0f : 0x07)
+				for (let j = 0; j < n; j++) cp = (cp << 6) | (b[i + j] & 0x3f)
+				i += n
+				if (n === 3) {
+					// Astral plane: reject overlong/out-of-range, else emit a
+					// surrogate pair.
+					if (cp < 0x10000 || cp > 0x10ffff) {
+						s += '�'
+						continue
+					}
 					const o = cp - 0x10000
 					s += String.fromCharCode(0xd800 + (o >> 10), 0xdc00 + (o & 0x3ff))
+				} else {
+					// Reject UTF-8-encoded surrogate code points (CESU-8) so we
+					// never emit lone surrogates.
+					s += cp >= 0xd800 && cp <= 0xdfff
+						? '�'
+						: String.fromCharCode(cp)
 				}
 			}
 			return s
