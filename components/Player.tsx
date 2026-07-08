@@ -23,6 +23,7 @@ import {
   sourceKey,
   isFavoritable,
   getEmbedHtml,
+  recordingMime,
   type Source,
   type SourceHistoryBuckets,
   type LibrarySource,
@@ -844,7 +845,10 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
           const b = buffer as TfmxBuffers;
           player.play({ tfx: b.tfx, sam: b.sam, base: source.base });
         } else {
-          player.play(buffer as ArrayBuffer);
+          // Route recordings to the PCM engine by the SOURCE's extension,
+          // not by content-sniffing the bytes — a tracker module's raw
+          // sample data can false-positive the MP3 sniff and get misrouted.
+          player.play(buffer as ArrayBuffer, recordingMime(source));
         }
         // Capture the new engine kind synchronously. AudioPlayer.play()
         // sets `this.active` synchronously before any await/Promise.then

@@ -18,7 +18,25 @@
  * time — keep the two in sync if D2 ever widens.
  */
 
-type MimeType = "audio/mpeg" | "audio/ogg" | "audio/flac";
+export type MimeType = "audio/mpeg" | "audio/ogg" | "audio/flac";
+
+/**
+ * Recording MIME from a filename extension. This is the AUTHORITATIVE
+ * recording classifier for source-backed playback: a `.mp3` is a
+ * recording regardless of its byte layout, and — crucially — a tracker
+ * module (`.mod` etc.) is never misclassified, unlike the content sniff
+ * `mimeForBuffer`, whose deep MP3 frame-sync scan false-positives on raw
+ * PCM sample data. Callers with a known source (Library / Local files)
+ * should route by this; `mimeForBuffer` remains for sourceless buffers
+ * (e.g. download-time extension guessing for Mod Archive).
+ */
+export function mimeForExtension(filename: string): MimeType | null {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".mp3")) return "audio/mpeg";
+  if (lower.endsWith(".ogg")) return "audio/ogg";
+  if (lower.endsWith(".flac")) return "audio/flac";
+  return null;
+}
 
 function asBytes(input: ArrayBuffer | Uint8Array): Uint8Array {
   return input instanceof Uint8Array ? input : new Uint8Array(input);

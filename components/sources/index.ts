@@ -12,6 +12,8 @@
 // sample bank by filename from the music-data file's path, which is
 // why TFMX always travels as a pair.
 
+import { mimeForExtension, type MimeType } from "../../lib/recording-magic";
+
 export const MODULE_EXTENSIONS = [
   ".mod",
   ".xm",
@@ -81,6 +83,24 @@ export type Source =
   | TfmxLocalSource
   | TfmxLibrarySource;
 export type SourceType = Source["type"];
+
+/**
+ * Recording MIME for a source, or null if it isn't a PCM recording.
+ * Derived from the source's on-disk filename extension — the authoritative
+ * recording classifier passed to `AudioPlayer.play(buffer, mime)`. Only
+ * Library/Local sources can be recordings; Mod Archive is always a module,
+ * and TFMX travels as a pair (handled by object shape, never a recording).
+ */
+export function recordingMime(source: Source): MimeType | null {
+  switch (source.type) {
+    case "library":
+      return mimeForExtension(source.path);
+    case "local":
+      return mimeForExtension(source.file.name);
+    default:
+      return null;
+  }
+}
 export type SourceHistoryBuckets = Record<
   SourceType,
   { items: Source[]; current: number }
