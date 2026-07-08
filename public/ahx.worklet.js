@@ -14,6 +14,11 @@
  * directly — no MEMFS, no FORCE_FILESYSTEM, no per-file FS dance.
  */
 
+// MUST come before the Emscripten glue import: Firefox's
+// AudioWorkletGlobalScope has no TextDecoder (spec-compliant) and the
+// glue constructs one unguarded during init — see the polyfill's header
+// and issue #89.
+import './worklet-textdecoder-polyfill.js'
 import createLibahx from './libahx.worklet.js'
 
 // Module instance (ahx2play Emscripten Module). Populated asynchronously.
