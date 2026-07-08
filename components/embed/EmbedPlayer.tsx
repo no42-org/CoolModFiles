@@ -9,6 +9,7 @@ import { getRandomInt, RANDOM_MAX } from "../../utils";
 import {
   modArchive,
   getBuffer,
+  recordingMime,
   type Source,
   type ModArchiveSource,
 } from "../sources";
@@ -88,14 +89,15 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
         // The embed page is restricted to modarchive + library sources;
         // neither ever yields the TfmxBuffers two-buffer shape. Three
         // ArrayBuffer-content classes flow through this path: tracker
-        // modules (libopenmpt), AHX/THX recordings, and PCM recordings
-        // (.mp3/.ogg/.flac — routed through AudioPlayer's native-decode
-        // adapter by content sniff). The cast is safe; the alternative
-        // branch would be dead code today. See
+        // modules (libopenmpt), AHX/THX (routed by magic-byte sniff), and
+        // PCM recordings (.mp3/.ogg/.flac). Recordings are routed by the
+        // SOURCE's extension via recordingMime — not by content sniffing,
+        // which false-positives on tracker sample data. The cast is safe;
+        // the alternative branch would be dead code today. See
         // openspec/changes/add-lost-module-recordings/ Decision 13 for
         // why the embed surface plays recordings transparently with no
         // UI gating.
-        player.play(buffer as ArrayBuffer);
+        player.play(buffer as ArrayBuffer, recordingMime(source));
         setIsPlay(true);
         player.seek(0);
       })

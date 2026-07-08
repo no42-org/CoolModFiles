@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Ronny Trommer <ronny@no42.org>
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 // Source abstraction. Each source produces input for player.play().
 //
 // Shape:
@@ -11,6 +16,12 @@
 // the rest produce a single ArrayBuffer. libtfmx auto-discovers the
 // sample bank by filename from the music-data file's path, which is
 // why TFMX always travels as a pair.
+
+import {
+  mimeForExtension,
+  RECORDING_MIME_BY_EXTENSION,
+  type MimeType,
+} from "../../lib/recording-magic";
 
 export const MODULE_EXTENSIONS = [
   ".mod",
@@ -41,13 +52,16 @@ export const AHX_EXTENSIONS = [".ahx", ".thx"] as const;
 // in lib/audio-player.ts (HTMLAudioElement + MediaElementAudioSourceNode).
 // These are recordings of tracker modules whose original `.mod` is lost
 // — archival rescue per design.md in
-// openspec/changes/add-lost-module-recordings/. Engine dispatch is
-// content-sniffed via lib/recording-magic.ts at AudioPlayer.play(); the
-// extension allowlist only decides which files surface in catalogue
-// rows. Library + Local-drop only — Mod Archive does not host these.
-// Narrow allowlist (no .wav/.opus/.m4a) keeps the scope archival rather
-// than general audio.
-export const RECORDING_EXTENSIONS = [".mp3", ".ogg", ".flac"] as const;
+// openspec/changes/add-lost-module-recordings/. Engine dispatch is by
+// the SOURCE's extension (recordingMime below → AudioPlayer.play(buffer,
+// mime)) — never by content sniffing, which false-positives on tracker
+// sample data. The allowlist is derived from recording-magic's
+// RECORDING_MIME_BY_EXTENSION, the single source of truth for both
+// listing and routing — widen it there and both widen together.
+// Library + Local-drop only — Mod Archive does not host these. Narrow
+// allowlist (no .wav/.opus/.m4a) keeps the scope archival rather than
+// general audio.
+export const RECORDING_EXTENSIONS = Object.keys(RECORDING_MIME_BY_EXTENSION);
 
 export function isModuleFile(filename: string): boolean {
   const lower = filename.toLowerCase();
@@ -81,6 +95,24 @@ export type Source =
   | TfmxLocalSource
   | TfmxLibrarySource;
 export type SourceType = Source["type"];
+
+/**
+ * Recording MIME for a source, or null if it isn't a PCM recording.
+ * Derived from the source's on-disk filename extension — the authoritative
+ * recording classifier passed to `AudioPlayer.play(buffer, mime)`. Only
+ * Library/Local sources can be recordings; Mod Archive is always a module,
+ * and TFMX travels as a pair (handled by object shape, never a recording).
+ */
+export function recordingMime(source: Source): MimeType | null {
+  switch (source.type) {
+    case "library":
+      return mimeForExtension(source.path);
+    case "local":
+      return mimeForExtension(source.file.name);
+    default:
+      return null;
+  }
+}
 export type SourceHistoryBuckets = Record<
   SourceType,
   { items: Source[]; current: number }

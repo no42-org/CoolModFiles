@@ -18,7 +18,35 @@
  * time — keep the two in sync if D2 ever widens.
  */
 
-type MimeType = "audio/mpeg" | "audio/ogg" | "audio/flac";
+export type MimeType = "audio/mpeg" | "audio/ogg" | "audio/flac";
+
+// Single source of truth for the recording allowlist AND its MIME
+// mapping. components/sources derives RECORDING_EXTENSIONS from these
+// keys, so widening the allowlist (e.g. adding ".opus") automatically
+// widens routing too — listing and playback dispatch cannot diverge.
+export const RECORDING_MIME_BY_EXTENSION: Record<string, MimeType> = {
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
+  ".flac": "audio/flac",
+};
+
+/**
+ * Recording MIME from a filename extension. This is the AUTHORITATIVE
+ * recording classifier for source-backed playback: a `.mp3` is a
+ * recording regardless of its byte layout, and — crucially — a tracker
+ * module (`.mod` etc.) is never misclassified, unlike the content sniff
+ * `mimeForBuffer`, whose deep MP3 frame-sync scan false-positives on raw
+ * PCM sample data. Callers with a known source (Library / Local files)
+ * should route by this; `mimeForBuffer` remains for sourceless buffers
+ * (e.g. download-time extension guessing for Mod Archive).
+ */
+export function mimeForExtension(filename: string): MimeType | null {
+  const lower = filename.toLowerCase();
+  for (const ext of Object.keys(RECORDING_MIME_BY_EXTENSION)) {
+    if (lower.endsWith(ext)) return RECORDING_MIME_BY_EXTENSION[ext];
+  }
+  return null;
+}
 
 function asBytes(input: ArrayBuffer | Uint8Array): Uint8Array {
   return input instanceof Uint8Array ? input : new Uint8Array(input);

@@ -8,6 +8,7 @@ import {
   looksLikeFlac,
   looksLikeMp3,
   mimeForBuffer,
+  mimeForExtension,
 } from "./recording-magic";
 
 const OGG = [0x4f, 0x67, 0x67, 0x53];
@@ -136,6 +137,32 @@ describe("looksLikeMp3", () => {
 
   it("returns false for short buffer", () => {
     expect(looksLikeMp3(buf([0xff]))).toBe(false);
+  });
+});
+
+describe("mimeForExtension (authoritative source-based recording classifier)", () => {
+  it("maps recording extensions to MIME (case-insensitive)", () => {
+    expect(mimeForExtension("song.mp3")).toBe("audio/mpeg");
+    expect(mimeForExtension("song.OGG")).toBe("audio/ogg");
+    expect(mimeForExtension("path/to/Song.FLAC")).toBe("audio/flac");
+  });
+
+  it("returns null for tracker modules — never misclassifies a .mod as a recording", () => {
+    // This is the whole point: dispatch routes by extension so a tracker
+    // module's raw PCM sample data can't false-positive the MP3 content
+    // sniff and get sent to the <audio> element (bug: Library/Local MODs
+    // failing with "Couldn't play that track").
+    for (const name of [
+      "tune.mod",
+      "tune.xm",
+      "tune.it",
+      "tune.s3m",
+      "tune.ahx",
+      "tune.tfx",
+      "tune.fc",
+    ]) {
+      expect(mimeForExtension(name)).toBeNull();
+    }
   });
 });
 

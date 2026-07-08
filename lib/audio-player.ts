@@ -26,7 +26,7 @@
  */
 
 import { looksLikeAhx } from "./ahx-magic";
-import { mimeForBuffer } from "./recording-magic";
+import type { MimeType } from "./recording-magic";
 
 export type TfmxPair = {
   tfx: ArrayBuffer | Uint8Array;
@@ -602,13 +602,21 @@ export class AudioPlayer {
    * browser's native decoders). Dispatch order in `play(input)`:
    *   1. TfmxPair shape → libtfmx
    *   2. ArrayBuffer + AHX/THX magic + valid version byte → ahx2play
-   *   3. ArrayBuffer + OGG/FLAC/MP3 magic → PCM adapter
+   *   3. `pcmMime` provided by the caller → PCM adapter
    *   4. Anything else → libopenmpt
    * AHX and TFMX worklets are lazy-loaded on first use. The PCM adapter
    * is lazy-created on first PCM play (no worklet — uses HTMLAudioElement).
+   *
+   * `pcmMime` is the caller's authoritative recording signal, derived from
+   * the SOURCE's extension (Library/Local `.mp3`/`.ogg`/`.flac`) — NOT from
+   * content sniffing. Content-sniffing every buffer here was a bug: the MP3
+   * deep-scan false-positives on tracker modules' raw PCM sample data, so a
+   * genuine `.mod` from Library/Local got routed to the `<audio>` element
+   * and failed to decode ("Couldn't play that track"). Recordings only ever
+   * arrive from a source with a recording extension, so the extension is a
+   * complete and safe classifier; module bytes never reach a sniffer now.
    */
-  play(input: ArrayBuffer | TfmxPair): void {
-    let pcmMime: ReturnType<typeof mimeForBuffer> = null;
+  play(input: ArrayBuffer | TfmxPair, pcmMime: MimeType | null = null): void {
     if (isTfmxPair(input)) {
       const wasAhx = this.active === "ahx";
       this.active = "tfmx";
@@ -687,16 +695,14 @@ export class AudioPlayer {
       } else {
         startAhx();
       }
-    } else if ((pcmMime = mimeForBuffer(input)) !== null) {
-      // At this point in the dispatch chain TypeScript has narrowed
-      // `input` to `never` (TfmxPair already excluded; looksLikeAhx's
-      // type predicate narrowed away the ArrayBuffer in the false
-      // branch). It is runtime-safely an ArrayBuffer here — the
-      // `looksLikeAhx is ArrayBuffer` predicate only fires positively
-      // for ArrayBuffers AND the playable callers (Player.tsx,
-      // EmbedPlayer.tsx) never construct a non-TfmxPair non-ArrayBuffer
-      // input. The assertion below is the minimum needed to satisfy
-      // strict mode without restructuring the dispatch.
+    } else if (pcmMime !== null) {
+      // The caller flagged this as a recording (by source extension).
+      // `input` is runtime-safely an ArrayBuffer here — TfmxPair is
+      // excluded above and looksLikeAhx's type predicate narrowed the
+      // ArrayBuffer away in its false branch; the playable callers
+      // (Player.tsx, EmbedPlayer.tsx) never construct a non-TfmxPair
+      // non-ArrayBuffer input. The assertion is the minimum needed to
+      // satisfy strict mode without restructuring the dispatch.
       this.playPcm(input as ArrayBuffer, pcmMime);
     } else {
       const wasTfmx = this.active === "tfmx";
