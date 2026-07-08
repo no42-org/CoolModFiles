@@ -18,6 +18,7 @@ import {
   local,
   tfmxLocal,
   tfmxLibrary,
+  tfmxSingleLibrary,
   getBuffer,
   getPermalink,
   sourceKey,
@@ -29,6 +30,7 @@ import {
   type TfmxLocalSource,
   type TfmxLibrarySource,
   type TfmxSingleLocalSource,
+  type TfmxSingleLibrarySource,
   type TfmxBuffers,
 } from "./sources";
 import type { FavoriteTrack } from "./LikedMod";
@@ -143,13 +145,16 @@ type PickRandomNextCtx = {
   latestId: number;
   pickedFiles: File[];
   pickedTfmxPairs: TfmxLocalSource[];
+  pickedTfmxSingles: TfmxSingleLocalSource[];
 };
 
 type ListingPairEntry = { base: string; tfx: string; sam: string };
+type ListingSingleEntry = { base: string; name: string; ext: string };
 type LibraryListing = {
   dirs?: string[];
   files?: string[];
   pairs?: ListingPairEntry[];
+  singles?: ListingSingleEntry[];
 };
 
 // For library/tfmx-library sources: walk the parent directory's visual
@@ -162,9 +167,14 @@ type LibraryListing = {
 // pair anywhere in LIBRARY_ROOT: playing Apidya-Ongame_1 ended into
 // some unrelated TFMX file instead of Apidya-Ongame_2.
 async function pickNextInFolder(
-  source: LibrarySource | TfmxLibrarySource
+  source: LibrarySource | TfmxLibrarySource | TfmxSingleLibrarySource
 ): Promise<Source | null> {
-  const currentPath = source.type === "library" ? source.path : source.tfxPath;
+  const currentPath =
+    source.type === "library"
+      ? source.path
+      : source.type === "tfmx-library"
+        ? source.tfxPath
+        : source.path;
   const lastSlash = currentPath.lastIndexOf("/");
   const parentDir = lastSlash >= 0 ? currentPath.slice(0, lastSlash) : "";
   const currentBasename = currentPath.slice(lastSlash + 1);
@@ -180,9 +190,12 @@ async function pickNextInFolder(
 
   type Entry =
     | { kind: "pair"; pair: ListingPairEntry }
+    | { kind: "single"; single: ListingSingleEntry }
     | { kind: "file"; name: string };
+  // Match LibraryCatalog's render order: pairs, then singles, then files.
   const entries: Entry[] = [
     ...(data.pairs ?? []).map((p): Entry => ({ kind: "pair", pair: p })),
+    ...(data.singles ?? []).map((s): Entry => ({ kind: "single", single: s })),
     ...(data.files ?? []).map((f): Entry => ({ kind: "file", name: f })),
   ];
   if (entries.length === 0) return null;
@@ -192,6 +205,11 @@ async function pickNextInFolder(
     const e = entries[i];
     if (source.type === "tfmx-library" && e.kind === "pair") {
       if (e.pair.tfx === currentBasename || e.pair.sam === currentBasename) {
+        currentIdx = i;
+        break;
+      }
+    } else if (source.type === "tfmx-single-library" && e.kind === "single") {
+      if (e.single.name === currentBasename) {
         currentIdx = i;
         break;
       }
@@ -213,12 +231,24 @@ async function pickNextInFolder(
       nextEntry.pair.base
     );
   }
+  if (nextEntry.kind === "single") {
+    return tfmxSingleLibrary(
+      prefix + nextEntry.single.name,
+      nextEntry.single.base,
+      nextEntry.single.ext
+    );
+  }
   return library(prefix + nextEntry.name);
 }
 
 async function pickRandomNext(
   source: Source,
-  { latestId, pickedFiles, pickedTfmxPairs }: PickRandomNextCtx
+  {
+    latestId,
+    pickedFiles,
+    pickedTfmxPairs,
+    pickedTfmxSingles,
+  }: PickRandomNextCtx
 ): Promise<Source | null> {
   switch (source.type) {
     case "modarchive":
@@ -273,14 +303,31 @@ async function pickRandomNext(
       }
     }
     case "tfmx-single-local":
-    case "tfmx-single-library":
-      // Single-file libtfmx formats are reachable via browse/search only;
-      // they are deliberately excluded from the random feed (the
-      // tfmx-random endpoint's {tfxPath,samPath} contract can't represent
-      // a single file — see add-tfmx-single-file-formats design Decision 5).
-      // Folder-sequential auto-advance for singles is a follow-up; for now
-      // end-of-track does not chain to a sibling.
-      return null;
+      // Mirror the `tfmx-local` arm: random-pick from the dropped set so a
+      // local single auto-advances like local MODs/pairs, and a fetch
+      // failure retries in-family instead of teleporting to Mod Archive.
+      if (!pickedTfmxSingles || pickedTfmxSingles.length === 0) return null;
+      return pickedTfmxSingles[
+        getRandomInt(0, pickedTfmxSingles.length - 1)
+      ];
+    case "tfmx-single-library": {
+      // Sequential folder walk first, same as `tfmx-library`.
+      const sibling = await pickNextInFolder(source);
+      if (sibling) return sibling;
+      // Single-file formats are deliberately excluded from
+      // /api/library/tfmx-random (its {tfxPath,samPath} contract can't
+      // represent them — design Decision 5). Fall back to a random *library*
+      // track (same as the `library` arm) so a deleted/failed single stays
+      // in the library instead of teleporting the user onto Mod Archive.
+      try {
+        const r = await fetch("/api/library/random");
+        if (!r.ok) return null;
+        const data = (await r.json()) as { path?: string };
+        return data.path ? library(data.path) : null;
+      } catch {
+        return null;
+      }
+    }
     default: {
       // Exhaustiveness assertion: adding a new arm to Source without
       // updating this switch fails the build here.
@@ -758,6 +805,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
         latestId: maxId,
         pickedFiles,
         pickedTfmxPairs,
+        pickedTfmxSingles,
       });
       if (next) playFromSource(next);
     }
@@ -933,6 +981,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
           latestId: maxId,
           pickedFiles,
           pickedTfmxPairs,
+          pickedTfmxSingles,
         });
         if (myGeneration !== playGenerationRef.current) return;
         if (next) {

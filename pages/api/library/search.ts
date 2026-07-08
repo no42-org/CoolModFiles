@@ -20,6 +20,7 @@ import {
   tfmxSingleExt,
 } from "../../../lib/library";
 import { detectPairsInDir } from "../../../lib/library/pairs";
+import { parseHalfName } from "../../../lib/tfmx/pairs";
 
 type ModResult = { kind: "mod"; path: string };
 type TfmxResult = {
@@ -93,8 +94,12 @@ async function walk(
     if (pairedHalves.has(f.name)) continue;
     // Single-file libtfmx modules match on their base (filename minus the
     // recognised extension), mirroring the pair match-on-base rule (D8).
+    // A file that is also a pair half (e.g. an orphan `mdat.fc`) is NOT a
+    // single — pair detection takes precedence, and an orphan half is
+    // 404'd by the file endpoint anyway, so surfacing it would be a dead
+    // result.
     const singleExt = tfmxSingleExt(f.name);
-    if (singleExt) {
+    if (singleExt && !parseHalfName(f.name)) {
       const base = f.name.slice(0, f.name.length - singleExt.length);
       if (base.toLowerCase().includes(query)) {
         results.push({

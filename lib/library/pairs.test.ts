@@ -37,6 +37,17 @@ describe("detectSinglesInDir", () => {
     const singles = detectSinglesInDir(files("song.fc", "song.sam"));
     expect(singles).toEqual([{ base: "song", name: "song.fc", ext: ".fc" }]);
   });
+
+  it("excludes prefix-Amiga pair halves that end in a single-file token", () => {
+    // `mdat.fc` + `smpl.fc` is a Huelsbeck pair (base "fc"), NOT two FC
+    // singles. Pair detection takes precedence, so detectSinglesInDir must
+    // emit nothing here — otherwise the same files would be double-listed
+    // (once as the pair, once as phantom singles).
+    expect(detectSinglesInDir(files("mdat.fc", "smpl.fc"))).toEqual([]);
+    expect(detectPairsInDir(files("mdat.fc", "smpl.fc"))).toEqual([
+      { base: "fc", tfx: "mdat.fc", sam: "smpl.fc" },
+    ]);
+  });
 });
 
 describe("detectPairsInDir regression (singles must not contaminate)", () => {

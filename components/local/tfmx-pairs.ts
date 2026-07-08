@@ -63,13 +63,15 @@ export function detectTfmxPairs(files: File[]): DetectResult {
   const collisions: string[] = [];
 
   for (const file of files) {
-    // Single-file libtfmx formats are claimed FIRST — before the pair-half
-    // parse and before the remainingFiles push — so they never fall through
-    // to the isModuleFile pipeline (which excludes them by design) and get
-    // silently dropped. A single file is immediately playable, never
-    // `unpaired`.
+    // Single-file libtfmx formats are claimed before the remainingFiles
+    // push, so they never fall through to the isModuleFile pipeline (which
+    // excludes them by design) and get silently dropped. A single file is
+    // immediately playable, never `unpaired`. A file that is ALSO a pair
+    // half (e.g. the prefix-Amiga `mdat.fc` whose base ends in a single-file
+    // token) is NOT a single — pair detection takes precedence, matching the
+    // library search endpoint. Hence the `!parseHalfName` guard.
     const singleExt = tfmxSingleExt(file.name);
-    if (singleExt) {
+    if (singleExt && !parseHalfName(file.name)) {
       const base = file.name.slice(0, file.name.length - singleExt.length);
       singles.push(tfmxSingleLocal(file, base, singleExt));
       continue;

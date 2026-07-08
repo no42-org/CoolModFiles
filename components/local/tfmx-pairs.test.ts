@@ -46,4 +46,13 @@ describe("detectTfmxPairs — single-file handling", () => {
     expect(r.remainingFiles.map((x) => x.name)).toEqual(["song.mod"]);
     expect(r.singles).toEqual([]);
   });
+
+  it("treats a prefix-Amiga pair ending in a single-file token as a pair, not singles", () => {
+    // `mdat.fc` + `smpl.fc` (base "fc") must be detected as ONE pair, not
+    // split into two bogus FC singles — pair detection takes precedence.
+    const r = detectTfmxPairs([f("mdat.fc"), f("smpl.fc")]);
+    expect(r.singles).toEqual([]);
+    expect(r.pairs).toHaveLength(1);
+    expect(r.pairs[0].base).toBe("fc");
+  });
 });

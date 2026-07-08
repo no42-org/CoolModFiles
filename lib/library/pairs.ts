@@ -89,7 +89,11 @@ export function detectPairsInDir(entries: DirEntry[]): TfmxPairEntry[] {
  * Single-file libtfmx modules in a directory's entry list. These are
  * self-contained (no sample half) and NOT run through pair-matching —
  * which would drop them as orphans. Deliberately excludes the ambiguous
- * .mdat/.tfm/.tfmx names (handled by the pair path). Sorted by base.
+ * .mdat/.tfm/.tfmx names (handled by the pair path). A file that is also a
+ * pair half (e.g. a prefix-Amiga `mdat.fc` whose base ends in a single-file
+ * token) is excluded via the `parseHalfName` guard so it isn't listed both
+ * here AND in `detectPairsInDir` — pair detection takes precedence, matching
+ * the search endpoint. Sorted by base.
  */
 export function detectSinglesInDir(entries: DirEntry[]): TfmxSingleEntry[] {
   const out: TfmxSingleEntry[] = [];
@@ -97,6 +101,7 @@ export function detectSinglesInDir(entries: DirEntry[]): TfmxSingleEntry[] {
     if (!e.isFile) continue;
     const ext = tfmxSingleExt(e.name);
     if (!ext) continue;
+    if (parseHalfName(e.name)) continue; // it's a pair half — not a single
     out.push({ base: e.name.slice(0, e.name.length - ext.length), name: e.name, ext });
   }
   out.sort((a, b) => a.base.localeCompare(b.base));
