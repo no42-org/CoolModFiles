@@ -20,6 +20,16 @@
 
 export type MimeType = "audio/mpeg" | "audio/ogg" | "audio/flac";
 
+// Single source of truth for the recording allowlist AND its MIME
+// mapping. components/sources derives RECORDING_EXTENSIONS from these
+// keys, so widening the allowlist (e.g. adding ".opus") automatically
+// widens routing too — listing and playback dispatch cannot diverge.
+export const RECORDING_MIME_BY_EXTENSION: Record<string, MimeType> = {
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
+  ".flac": "audio/flac",
+};
+
 /**
  * Recording MIME from a filename extension. This is the AUTHORITATIVE
  * recording classifier for source-backed playback: a `.mp3` is a
@@ -32,9 +42,9 @@ export type MimeType = "audio/mpeg" | "audio/ogg" | "audio/flac";
  */
 export function mimeForExtension(filename: string): MimeType | null {
   const lower = filename.toLowerCase();
-  if (lower.endsWith(".mp3")) return "audio/mpeg";
-  if (lower.endsWith(".ogg")) return "audio/ogg";
-  if (lower.endsWith(".flac")) return "audio/flac";
+  for (const ext of Object.keys(RECORDING_MIME_BY_EXTENSION)) {
+    if (lower.endsWith(ext)) return RECORDING_MIME_BY_EXTENSION[ext];
+  }
   return null;
 }
 
