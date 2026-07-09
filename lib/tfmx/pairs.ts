@@ -39,6 +39,12 @@ export function parseHalfName(name: string): ParsedHalfName | null {
   if (lower.startsWith("mdat.")) return result("tfx", name.slice(5));
   if (lower.startsWith("smpl.")) return result("sam", name.slice(5));
 
+  // prefix-dns (Chris Huelsbeck Dynamic Synthesizer; libtfmx >= 1.0.10).
+  // `smp.` does not collide with the `smpl.` check above — `smpl.<base>`
+  // does not start with `smp.` (the char after `smp` is `l`, not `.`).
+  if (lower.startsWith("dns.")) return result("tfx", name.slice(4));
+  if (lower.startsWith("smp.")) return result("sam", name.slice(4));
+
   return null;
 }
 

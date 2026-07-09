@@ -64,3 +64,31 @@ describe("detectPairsInDir regression (singles must not contaminate)", () => {
     expect(detectSinglesInDir(files("orphan.mdat"))).toEqual([]);
   });
 });
+
+describe("detectPairsInDir — prefix-dns (Dynamic Synthesizer)", () => {
+  it("pairs a dns./smp. Dynamic Synthesizer pair with a space-bearing base", () => {
+    const pairs = detectPairsInDir(
+      files("dns.starball title", "smp.starball title")
+    );
+    expect(pairs).toEqual([
+      { base: "starball title", tfx: "dns.starball title", sam: "smp.starball title" },
+    ]);
+  });
+
+  it("drops an orphan dns. half (allowlist/orphan-rejection intent)", () => {
+    // Mirrors pages/api/library/file.ts: isTfmxHalf(dns.foo) is true but
+    // hasTfmxPartner is false, so the byte-server 404s it — same as any
+    // other orphan half. detectSinglesInDir must not promote it either.
+    expect(detectPairsInDir(files("dns.ptc"))).toEqual([]);
+    expect(detectSinglesInDir(files("dns.ptc"))).toEqual([]);
+  });
+
+  it("does not treat a smpl. half as a smp. Dynamic Synthesizer half", () => {
+    // A lone smpl.Turrican2 is an orphan prefix-Amiga sample half, not a
+    // dns/smp pair — confirms the smp. check does not shadow smpl.
+    expect(detectPairsInDir(files("smpl.Turrican2"))).toEqual([]);
+    expect(
+      detectPairsInDir(files("mdat.Turrican2", "smpl.Turrican2"))
+    ).toEqual([{ base: "Turrican2", tfx: "mdat.Turrican2", sam: "smpl.Turrican2" }]);
+  });
+});
