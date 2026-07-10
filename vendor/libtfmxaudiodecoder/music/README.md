@@ -3,7 +3,7 @@ More details in [README_BAD.md](../README_BAD.md) and within the library's sourc
 
 ---
 
-Instructions to repair these two:
+Instructions to repair these:
 
 #### Wings of Death (ST)
 
@@ -32,4 +32,33 @@ $ md5sum SOG.GrandSlamMonsterST
 $ bspatch SOG.GrandSlamMonsterST SOG.GrandMonsterSlamST_repaired SOG.GrandSlamMonsterST.bsdiff
 $ md5sum SOG.GrandMonsterSlamST_repaired 
 3e44767bb77e309a328edcb482ee51b2  SOG.GrandMonsterSlamST_repaired
+```
+
+#### Hollywood Poker Pro
+
+```
+$ md5sum DNS_HollywoodPoker.lzx
+d46a10746a5b14e5f0a98812834f472d  DNS_HollywoodPoker.lzx
+...
+(run unlzx, unar or any tool to uncompress the .lzx archive)
+...
+$ bspatch DNS.HollywoodPokerPro\ title DNS.HollywoodPokerPro\ title_repaired DNS.HollywoodPokerPro\ title.bsdiff
+$ md5sum 'DNS.HollywoodPokerPro title_repaired'
+610c74d10a0a10029f281f03486516d2  DNS.HollywoodPokerPro title_repaired
+```
+
+#### Z-Out (level 2)
+
+There are different rips of this with different file names, so this applies
+only to an MDAT file with the same MD5 checksum:
+
+```
+37b406445ed1eb805f152b8a690092c1  mdat.z-out level 2
+37b406445ed1eb805f152b8a690092c1  MDAT.Z-Out 5
+```
+
+After applying the bsdiff, the checksum of the repaired MDAT becomes:
+
+```
+64252c913897f0128806a7abc52b0ce5  mdat.z-out level 2_repaired
 ```

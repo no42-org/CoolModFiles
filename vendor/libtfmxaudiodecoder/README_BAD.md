@@ -85,6 +85,104 @@ reparing the file, its MD5 fingerprint becomes:
 
 ---
 
+#### R-Type
+
+This file in the Chris Huelsbeck folder on Modland has been bad until
+2026-06-04, because the sample data are not correct (the first 192 bytes
+are missing).
+
+```
+818990ee9936728321ed334654136d68  smpl.r-type
+```
+
+A good rip of the music is provided by the Wanted Team, for example.
+On Modland, the file has been replaced, too, so redownload it if your
+copy is older.
+
+---
+
+#### Turrican III
+
+A truncated rip of ``Turrican III - level 5`` (aka world 5) is offered for download
+in some places with varying file names, possibly as a copy from the so-called
+Sloppy collection. Several offsets to instrument macro scripts are missing, and
+while that isn't anything that crashes the decoder, those files are bad.
+
+```
+357dc0be804c7e97f35f2c1a0d24a821  mdat.t3-lvl5
+357dc0be804c7e97f35f2c1a0d24a821  T3-LVL5.TFX
+```
+
+Good rips of that are available on e.g. Modland, ExoticA, Wanted Team's page.
+
+---
+
+#### MDAT.Factor5 / Turrican III
+
+Unmodified, it is not a valid TFMX song. Offset to patterns and offset to macros are the same, which makes no sense:
+
+```
+000001d0  00 00 02 18 00 00 04 20  00 00 04 20 00 00 00 00  |....... ... ....|
+                            ^^ ^^        ^^ ^^
+```
+
+Track table at 0x218 is empty:
+
+```
+00000218  ff 00 ff 00 ff 00 ff 00  ff 00 ff 00 ff 00 ff 00  |................|
+```
+
+There are some unreferenced bytes at 0x200-0x218, which may have been part
+of some pattern at some point, but it's not a complete pattern anymore. And
+instrument number 0x10 exceeds the total number of 8 macro scripts in the file.
+Conclusively, it is likely that external code run by the game while
+displaying the Factor 5 intro screen uses this pair of MDAT+SMPL to
+trigger SFX.
+
+---
+
+#### Blade of Destiny - title (7ch)
+
+This file in the Rudolf Stember folder on Modland is invalid, because it's damaged
+beyond repair.
+
+```
+7e833022c3aa3c8072a9d930008b3558  mdat.blade of destiny - titel (7ch)
+```
+
+---
+
+#### Hanse
+
+This file in the Rudolf Stember folder on Modland is invalid, because it's truncated and doesn't make any sense.
+
+```
+0346dbc2b5aef88598adca25c31b5c5c  mdat.hanse-ascon
+```
+
+Offsets to track table at 0x200, pattern offsets at 0x218 and macro offsets at 0x21c:
+
+```
+000001d0  00 00 02 00 00 00 02 18  00 00 02 1c 00 00 00 00  |................|
+                ^^ ^^       ^^ ^^        ^^ ^^
+```
+
+Yet the file is just 540 bytes short (= 0x21c), so the macro offsets at 0x21c
+are missing, and no macro scripts exist within the file. Furthermore,
+the track table points at a default TFMX **empty pattern** only:
+
+```
+Track step #0:
+00000200  00 00 ff 00 ff 00 ff 00  ff 00 ff 00 ff 00 ff 00  |................|
+          ^^
+
+Pattern #0:
+00000210  f4 00 00 00 f0 00 00 00  00 00 02 10              |............|
+          ^^ ^^ ^^ ^^ ^^ ^^ ^^ ^^
+```
+
+---
+
 #### Future Composer modules
 
  * The soundtrack modules from the game ``Chambers of Shaolin`` as included
@@ -104,3 +202,14 @@ is a duplicate of ``Amberstar (12).hipc``. Sometimes the samples are found
 in a separate file named "hipc.samp", in other cases the separate file is
 named "smp.set" but is stored in a different path. Searching for it and
 loading it would not be worthwhile. Especially not since it is a duplicate.
+
+---
+
+#### Hollywood Poker Pro
+
+Samples 2 and 15 of the title theme by mistake define repeat length in number
+of bytes instead of number of words, advancing into the next sample area
+and causing minor but audible artefacts. If loading the title theme into
+libtfmxaudiodecoder **newer than 1.0.9** those two sample definitions are
+fixed on-the-fly. Alternatively, a bsdiff file is provided in the source
+repository's music folder.
