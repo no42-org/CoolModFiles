@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 import { describe, it, expect } from "vitest";
-import { parseHalfName } from "./pairs";
+import { parseHalfName, isDnsDataHalf } from "./pairs";
 
 describe("parseHalfName — prefix-dns convention (Dynamic Synthesizer)", () => {
   it("maps dns.<base> to the music-data (tfx) half", () => {
@@ -66,5 +66,37 @@ describe("parseHalfName — existing conventions still parse", () => {
   it("returns null for non-half names", () => {
     expect(parseHalfName("title.mod")).toBeNull();
     expect(parseHalfName("readme.txt")).toBeNull();
+  });
+});
+
+describe("isDnsDataHalf — worklet `dns` flag derivation", () => {
+  it("is true for a dns.-prefixed data half (any base, incl. spaces)", () => {
+    expect(isDnsDataHalf("dns.ptc")).toBe(true);
+    expect(isDnsDataHalf("dns.starball title")).toBe(true);
+  });
+
+  it("is case-insensitive on the prefix", () => {
+    expect(isDnsDataHalf("DNS.Starball")).toBe(true);
+    expect(isDnsDataHalf("Dns.foo")).toBe(true);
+  });
+
+  it("requires the literal `dns.` prefix (dot included)", () => {
+    // A name that merely starts with the letters `dns` but no dot is NOT a
+    // DNS half — guards against false positives like `dnsomething.mod`.
+    expect(isDnsDataHalf("dnsomething.mod")).toBe(false);
+    expect(isDnsDataHalf("dns")).toBe(false);
+  });
+
+  it("is false for the sample half and other pair conventions", () => {
+    // The flag is derived from the DATA half only; smp.* is the sample half.
+    expect(isDnsDataHalf("smp.ptc")).toBe(false);
+    expect(isDnsDataHalf("Apidya.tfx")).toBe(false);
+    expect(isDnsDataHalf("mdat.Turrican2")).toBe(false);
+    expect(isDnsDataHalf("song.mdat")).toBe(false);
+  });
+
+  it("is false for non-TFMX and empty names", () => {
+    expect(isDnsDataHalf("title.mod")).toBe(false);
+    expect(isDnsDataHalf("")).toBe(false);
   });
 });

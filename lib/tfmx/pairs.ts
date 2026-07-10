@@ -69,3 +69,19 @@ export function parseSingleName(name: string): ParsedSingleName | null {
   if (parseHalfName(name)) return null; // pair half — never a single
   return { base: name.slice(0, name.length - ext.length), ext };
 }
+
+/**
+ * True when `name` is the music-data half of a Chris Hülsbeck Dynamic
+ * Synthesizer pair — i.e. it carries the `dns.` prefix (case-insensitive).
+ *
+ * The worklet must write DNS pairs to MEMFS under `dns.`/`smp.` names,
+ * because libtfmx's DNS decoder discovers its sample bank by that filename
+ * token, NOT the `.tfx`→`.sam` guess the Hülsbeck-TFMX conventions use.
+ * The pair-play dispatch in Player.tsx derives the worklet's `dns` flag
+ * from this predicate applied to the data-half filename. A DNS pair's data
+ * half is definitionally `dns.`-prefixed (parseHalfName maps it to `tfx`),
+ * so this is exact, not a heuristic.
+ */
+export function isDnsDataHalf(name: string): boolean {
+  return /^dns\./i.test(name);
+}

@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { detectPairsInDir, detectSinglesInDir } from "./pairs";
+import { parseHalfName } from "../tfmx/pairs";
 
 type Entry = { name: string; isFile: boolean };
 const files = (...names: string[]): Entry[] =>
@@ -90,5 +91,37 @@ describe("detectPairsInDir — prefix-dns (Dynamic Synthesizer)", () => {
     expect(
       detectPairsInDir(files("mdat.Turrican2", "smpl.Turrican2"))
     ).toEqual([{ base: "Turrican2", tfx: "mdat.Turrican2", sam: "smpl.Turrican2" }]);
+  });
+});
+
+// Mirrors the two gates the byte-server (pages/api/library/file.ts) applies
+// to a requested path, without mounting the Next handler (the repo tests the
+// underlying predicates, not HTTP handlers — cf. random.test.ts):
+//   gate 1 — allowlist:  isTfmxHalf = parseHalfName(basename) !== null   (:90)
+//   gate 2 — orphan:     hasTfmxPartner via detectPairsInDir(dir)        (:53,:104)
+// A dns./smp. half is served (200) only when BOTH gates pass; otherwise 404.
+describe("byte-server contract for dns./smp. (allowlist + orphan gates)", () => {
+  const served = (target: string, ...dir: string[]): boolean => {
+    // gate 1: extension allowlist
+    if (parseHalfName(target) === null) return false;
+    // gate 2: partner must exist in the same directory
+    const pairs = detectPairsInDir(files(...dir));
+    return pairs.some((p) => p.tfx === target || p.sam === target);
+  };
+
+  it("serves a dns. half when its smp. partner exists (200)", () => {
+    expect(served("dns.ptc", "dns.ptc", "smp.ptc")).toBe(true);
+    expect(served("smp.ptc", "dns.ptc", "smp.ptc")).toBe(true);
+  });
+
+  it("404s an orphan dns. half (allowlisted but unpaired)", () => {
+    // parseHalfName("dns.orphan") !== null (passes gate 1) but no smp.orphan
+    // partner exists → gate 2 fails → the byte-server returns 404.
+    expect(parseHalfName("dns.orphan")).not.toBeNull();
+    expect(served("dns.orphan", "dns.orphan")).toBe(false);
+  });
+
+  it("404s a non-allowlisted path regardless of neighbours", () => {
+    expect(served("secret.txt", "secret.txt", "smp.ptc")).toBe(false);
   });
 });
