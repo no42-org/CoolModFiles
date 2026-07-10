@@ -24,6 +24,7 @@ import createLibtfmx from './libtfmx.worklet.js'
 // Module instance (libtfmx Emscripten Module). Populated asynchronously.
 let M
 let initFailed = false
+let initErrorDetail = ''
 // Live TFX instances. Used by the init .then to drain each instance's
 // pendingPlay, and by the .catch to surface init failure as an 'err'
 // event on any instance that's currently waiting on M.
@@ -43,12 +44,16 @@ createLibtfmx()
 	.catch(e => {
 		console.error('[tfmx-processor] init failed', e)
 		initFailed = true
-		// Surface the failure to any instance that's currently waiting.
-		// Without this the facade would wait for meta/err forever.
+		// WebKit/Safari drops this worklet-thread console.error, AND the old
+		// err message carried no `detail` — so a WASM init failure here showed
+		// up as a bare "Couldn't play this track" with a completely empty
+		// console. Capture the real reason and forward it in the err detail so
+		// the main thread (handleTfmxMessage_) can log/surface it.
+		initErrorDetail = `createLibtfmx() failed: ${e && e.stack ? e.stack : (e && e.message ? e.message : String(e))}`
 		for (const proc of tfxInstances) {
 			if (proc.pendingPlay) {
 				proc.pendingPlay = null
-				proc.port.postMessage({ cmd: 'err', val: 'ptr' })
+				proc.port.postMessage({ cmd: 'err', val: 'init', detail: initErrorDetail })
 			}
 		}
 	})
@@ -268,7 +273,7 @@ class TFX extends AudioWorkletProcessor {
 		// If the engine failed to initialise, fail this play immediately
 		// so the facade's onError → playNext path can recover.
 		if (initFailed) {
-			this.port.postMessage({ cmd: 'err', val: 'ptr' })
+			this.port.postMessage({ cmd: 'err', val: 'init', detail: initErrorDetail || 'wasm init failed (no detail captured)' })
 			return
 		}
 		// Defer until M is ready. createLibtfmx's .then iterates

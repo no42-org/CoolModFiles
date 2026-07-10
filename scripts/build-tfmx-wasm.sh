@@ -71,6 +71,14 @@ emmake make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" \
 #       use MEMFS to register both .tfx and .sam blobs as virtual files.
 #   -sALLOW_MEMORY_GROWTH=1
 #       Some TFMX modules need >16 MB at peak (large sample banks).
+#   -sWASM_ASYNC_COMPILATION=0
+#       Instantiate the WASM synchronously. Emscripten's default async path
+#       (WebAssembly.instantiate) NEVER resolves inside Safari/WebKit's
+#       AudioWorkletGlobalScope — createLibtfmx() hangs, so the processor
+#       loads but decodes nothing: silent "Couldn't play this track" on
+#       Safari while Chromium/Firefox work. Sync compilation resolves the
+#       factory immediately. The one-time compile of the ~270 KB module on
+#       the audio thread is negligible and paid once per session.
 #   (closure compilation disabled)
 #       --closure 1 mangles the FS namespace's inner method names even
 #       when 'FS' is in EXPORTED_RUNTIME_METHODS, and the documented
@@ -90,6 +98,7 @@ em++ -Oz -DNDEBUG \
   -sENVIRONMENT=worker \
   -sFORCE_FILESYSTEM=1 \
   -sALLOW_MEMORY_GROWTH=1 \
+  -sWASM_ASYNC_COMPILATION=0 \
   -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","FS","HEAPU8","HEAP16"]' \
   -o "${OUT}"
 

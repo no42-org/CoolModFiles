@@ -66,6 +66,20 @@ function isTfmxPair(input: unknown): input is TfmxPair {
   );
 }
 
+// TEMP diagnostic (remove once the Safari/WebKit TFMX failure is root-caused):
+// push a trace line into window.__tfmxDebug so it can be read headlessly via
+// page.evaluate — WebKit drops worklet/processor console output, so the normal
+// console is blind to this failure. Also console.error for good measure.
+function tfmxDbg(msg: string): void {
+  try {
+    const w = globalThis as unknown as { __tfmxDebug?: string[] };
+    (w.__tfmxDebug ??= []).push(msg);
+  } catch {
+    /* no global (SSR) */
+  }
+  console.error("[tfmx-dbg]", msg);
+}
+
 // looksLikeAhx is the magic-byte sniff that decides AHX dispatch. It
 // lives in lib/ahx-magic.ts so it can be unit-tested in isolation
 // without dragging in this file's ChiptuneJsPlayer ambient global.
@@ -237,6 +251,16 @@ export class AudioPlayer {
             outputChannelCount: [2],
           });
           this.tfmxNode.port.onmessage = (msg) => this.handleTfmxMessage_(msg);
+          tfmxDbg("tfmx node created");
+          // Currently-missing handler: an AudioWorklet fires `processorerror`
+          // when the processor's constructor OR process() throws. On WebKit
+          // this otherwise dies SILENTLY (no console, no message). Capture it.
+          this.tfmxNode.onprocessorerror = (ev: Event) => {
+            const m = (ev as unknown as { message?: string }).message;
+            tfmxDbg(`processorerror: ${m || ev.type || "unknown"}`);
+            if (this.active === "tfmx")
+              this.fireEvent("onError", { type: "tfmx-processor-error" });
+          };
           // Push the same config object the chiptune wrapper does so the
           // facade's listeners see a consistent meta shape regardless of
           // engine. libtfmx's worklet stores config for parity only — it
@@ -253,7 +277,7 @@ export class AudioPlayer {
       // leave tfmxReady as a permanently-rejected promise that all
       // subsequent play() calls await silently.
       this.tfmxReady = chain.catch((e) => {
-        console.error("[AudioPlayer] tfmx engine init failed", e);
+        tfmxDbg(`engine init failed: ${e && e.message ? e.message : String(e)}`);
         this.tfmxReady = undefined;
         throw e;
       });
@@ -541,6 +565,7 @@ export class AudioPlayer {
     const data = msg.data as { cmd: string; [k: string]: unknown };
     switch (data.cmd) {
       case "meta": {
+        tfmxDbg("worklet meta received");
         if (this.active !== "tfmx") return;
         const m = data.meta as ChiptuneMeta;
         this.meta = m;
@@ -548,6 +573,9 @@ export class AudioPlayer {
         this.fireEvent("onMetadata", m);
         break;
       }
+      case "dbg":
+        tfmxDbg(`worklet: ${String(data.detail ?? "")}`);
+        break;
       case "pos": {
         if (this.active !== "tfmx") return;
         // Worklet→main message contents are arbitrary structured-clone
@@ -571,6 +599,11 @@ export class AudioPlayer {
         this.fireEvent("onEnded");
         break;
       case "err":
+        tfmxDbg(
+          `worklet err: val=${String(data.val ?? "")} detail=${
+            typeof data.detail === "string" ? data.detail.slice(0, 300) : "-"
+          }`
+        );
         if (this.active !== "tfmx") return;
         // The worklet's `detail` field (when present) carries a richer
         // diagnostic string. console.error runs on the main thread here,
