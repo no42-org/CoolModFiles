@@ -49,14 +49,20 @@ function initWithModule(wasmModule) {
 		initErrorDetail = 'no WebAssembly.Module in processorOptions — the main thread must compile and pass it'
 		return
 	}
-	createLibtfmx({
+	// The Emscripten Module config object is augmented IN PLACE and becomes the
+	// Module, so we capture it (`mod`) and use it once ready. Readiness comes
+	// from the onRuntimeInitialized callback, NOT the MODULARIZE factory
+	// promise: on Safari the runtime fully initialises (onRuntimeInitialized
+	// fires) but the factory promise NEVER resolves inside an AudioWorklet, so
+	// awaiting `createLibtfmx(...).then(...)` hangs forever. onAbort covers the
+	// failure path.
+	const mod = {
 		instantiateWasm: (imports, successCallback) => {
 			const instance = new WebAssembly.Instance(wasmModule, imports)
 			successCallback(instance)
 			return instance.exports
 		},
-	})
-		.then(mod => {
+		onRuntimeInitialized: () => {
 			M = mod
 			for (const proc of tfxInstances) {
 				if (proc.pendingPlay) {
@@ -65,20 +71,26 @@ function initWithModule(wasmModule) {
 					proc._play(val)
 				}
 			}
-		})
-		.catch(e => {
-			console.error('[tfmx-processor] init failed', e)
+		},
+		onAbort: (what) => {
+			console.error('[tfmx-processor] init aborted', what)
 			initFailed = true
-			// WebKit/Safari drops this worklet-thread console.error; forward the
-			// real reason in the err `detail` so the main thread can surface it.
-			initErrorDetail = `createLibtfmx() failed: ${e && e.stack ? e.stack : (e && e.message ? e.message : String(e))}`
+			initErrorDetail = `libtfmx aborted during init: ${what}`
 			for (const proc of tfxInstances) {
 				if (proc.pendingPlay) {
 					proc.pendingPlay = null
 					proc.port.postMessage({ cmd: 'err', val: 'init', detail: initErrorDetail })
 				}
 			}
-		})
+		},
+	}
+	try {
+		createLibtfmx(mod)
+	} catch (e) {
+		console.error('[tfmx-processor] init threw', e)
+		initFailed = true
+		initErrorDetail = `createLibtfmx() threw: ${e && e.stack ? e.stack : (e && e.message ? e.message : String(e))}`
+	}
 }
 
 
@@ -119,7 +131,11 @@ class TFX extends AudioWorkletProcessor {
 		// Kick off libtfmx init with the main-thread-compiled WASM module the
 		// facade passed through processorOptions (see ensureTfmx). No-op after
 		// the first instance.
-		initWithModule(options && options.processorOptions && options.processorOptions.wasmModule)
+		const wasmModule = options && options.processorOptions && options.processorOptions.wasmModule
+		// Build marker (temp): proves which worklet script Safari actually
+		// loaded — "main-thread-compile" only appears if the new one did.
+		this.port.postMessage({ cmd: 'dbg', detail: `ctor build=main-thread-compile hasModule=${!!wasmModule}` })
+		initWithModule(wasmModule)
 	}
 
 	process(inputList, outputList, parameters) {
