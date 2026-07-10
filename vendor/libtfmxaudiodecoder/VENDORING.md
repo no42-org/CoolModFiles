@@ -26,7 +26,7 @@ Nothing. The contents of this directory are an unmodified `git archive` of the u
 ./scripts/build-tfmx-wasm.sh
 ```
 
-The script regenerates autotools (requires `glibtoolize` from Homebrew `libtool` on macOS), cross-compiles under `emscripten` (>= 4.0; last built with 6.0.2), links a thin wrapper from `scripts/tfmx-driver.cpp`, and writes `public/libtfmx.worklet.js` (single-file ES module with the WASM embedded — required for `AudioWorkletGlobalScope`, which cannot `fetch`). 1.0.14's `configure.ac` requires a C++11 compiler (`AX_CXX_COMPILE_STDCXX([11])`) and an `m4/` macro dir, both satisfied by the regen step.
+The script regenerates autotools (requires `glibtoolize` from Homebrew `libtool` on macOS), cross-compiles under `emscripten` (>= 4.0; last built with 6.0.2), links a thin wrapper from `scripts/tfmx-driver.cpp`, and writes **two** committed files: `public/libtfmx.worklet.js` (the emscripten ES module) and a **separate** `public/libtfmx.worklet.wasm`. The `.wasm` is deliberately not embedded: Safari's `AudioWorkletGlobalScope` hangs on in-worklet WASM instantiation, so the main thread fetches + `WebAssembly.compile()`s the `.wasm` and hands the module to the processor via `processorOptions` (see `public/tfmx.worklet.js` + `ensureTfmx` in `lib/audio-player.ts`). The build also uses a fixed `-sINITIAL_MEMORY` (no `ALLOW_MEMORY_GROWTH`) so Safari's `TextDecoder` doesn't throw on a growable heap. 1.0.14's `configure.ac` requires a C++11 compiler (`AX_CXX_COMPILE_STDCXX([11])`) and an `m4/` macro dir, both satisfied by the regen step.
 
 ## License
 

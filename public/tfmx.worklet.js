@@ -131,11 +131,7 @@ class TFX extends AudioWorkletProcessor {
 		// Kick off libtfmx init with the main-thread-compiled WASM module the
 		// facade passed through processorOptions (see ensureTfmx). No-op after
 		// the first instance.
-		const wasmModule = options && options.processorOptions && options.processorOptions.wasmModule
-		// Build marker (temp): proves which worklet script Safari actually
-		// loaded — "main-thread-compile" only appears if the new one did.
-		this.port.postMessage({ cmd: 'dbg', detail: `ctor build=main-thread-compile hasModule=${!!wasmModule}` })
-		initWithModule(wasmModule)
+		initWithModule(options && options.processorOptions && options.processorOptions.wasmModule)
 	}
 
 	process(inputList, outputList, parameters) {
@@ -330,6 +326,7 @@ class TFX extends AudioWorkletProcessor {
 		// Reset paused flag so a pause→stop→play sequence isn't stuck on silence.
 		this.paused = false
 
+		try {
 		// AudioPlayer.play() posts {tfx, sam?, base, ext?, dns?} as ArrayBuffer
 		// (structured clone preserves the type); we only need the
 		// ArrayBuffer→Uint8Array wrap for MEMFS writeFile. `sam` is absent
@@ -431,6 +428,12 @@ class TFX extends AudioWorkletProcessor {
 		this.formatName = M.ccall('tfx_format_name', 'string', ['number'], [this.decoder]) || ''
 
 		this._meta()
+		} catch (e) {
+			// Surface an unexpected throw in the load path (a decode/ccall
+			// failure) as an err instead of a silent, uncaught exception that
+			// would otherwise die as a processorerror with no diagnostics.
+			this.port.postMessage({ cmd: 'err', val: 'play', detail: `_play threw: ${e && e.stack ? e.stack : String(e)}` })
+		}
 	}
 
 	_stop() {

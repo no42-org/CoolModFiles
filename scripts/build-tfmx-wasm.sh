@@ -5,7 +5,8 @@
 # Build public/libtfmx.worklet.js from vendor/libtfmxaudiodecoder/.
 #
 # This is a manual build step — CI does not run it. The produced
-# public/libtfmx.worklet.js is committed and travels with the repo.
+# public/libtfmx.worklet.js AND public/libtfmx.worklet.wasm are committed and
+# travel with the repo (the .wasm is a SEPARATE file — see the link flags).
 # Re-run this script after bumping the vendored commit (update VENDORING.md
 # at the same time).
 #
@@ -53,8 +54,9 @@ echo "==> emmake (libtfmxaudiodecoder.a)"
 emmake make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" \
   CXXFLAGS="-Oz -DNDEBUG" CFLAGS="-Oz -DNDEBUG"
 
-# Link the static library + our driver into a single-file ES module suitable
-# for AudioWorkletGlobalScope (which cannot fetch external resources).
+# Link the static library + our driver into an ES module (+ separate .wasm)
+# for the AudioWorklet. The worklet itself cannot fetch, so the MAIN thread
+# fetches + compiles the .wasm and passes the module in (see tfmx.worklet.js).
 #
 # Flag rationale:
 #   -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createLibtfmx
@@ -106,3 +108,4 @@ em++ -Oz -DNDEBUG \
   -o "${OUT}"
 
 echo "==> done: $(wc -c <"${OUT}") bytes  →  ${OUT#${REPO_ROOT}/}"
+echo "         $(wc -c <"${OUT%.js}.wasm") bytes  →  ${OUT#${REPO_ROOT}/}" | sed 's/\.js$/.wasm/'
