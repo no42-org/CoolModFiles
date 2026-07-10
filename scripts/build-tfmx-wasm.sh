@@ -60,9 +60,14 @@ emmake make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" \
 #   -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createLibtfmx
 #       Produce an ES module whose default export is a factory returning a
 #       Promise<Module>. Matches the chiptune3 / libopenmpt pattern.
-#   -sSINGLE_FILE=1
-#       Inline the .wasm as base64 inside the .js. Required: AudioWorklet has
-#       no fetch().
+#       (NOT -sSINGLE_FILE) The .wasm is emitted as a SEPARATE file
+#       (libtfmx.worklet.wasm), not inlined. Safari's AudioWorkletGlobalScope
+#       hangs on emscripten's in-worklet async WASM instantiation — so the
+#       MAIN thread fetches + WebAssembly.compile()s this .wasm and hands the
+#       compiled WebAssembly.Module to the processor via processorOptions;
+#       the worklet then does a synchronous `new WebAssembly.Instance` via an
+#       instantiateWasm hook (see tfmx.worklet.js + ensureTfmx in
+#       lib/audio-player.ts). This is the portable AudioWorklet+WASM pattern.
 #   -sENVIRONMENT=worker
 #       Strip web/node init code. The worklet runs in an audio worker.
 #   -sFORCE_FILESYSTEM=1
@@ -71,14 +76,6 @@ emmake make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" \
 #       use MEMFS to register both .tfx and .sam blobs as virtual files.
 #   -sALLOW_MEMORY_GROWTH=1
 #       Some TFMX modules need >16 MB at peak (large sample banks).
-#   -sWASM_ASYNC_COMPILATION=0
-#       Instantiate the WASM synchronously. Emscripten's default async path
-#       (WebAssembly.instantiate) NEVER resolves inside Safari/WebKit's
-#       AudioWorkletGlobalScope — createLibtfmx() hangs, so the processor
-#       loads but decodes nothing: silent "Couldn't play this track" on
-#       Safari while Chromium/Firefox work. Sync compilation resolves the
-#       factory immediately. The one-time compile of the ~270 KB module on
-#       the audio thread is negligible and paid once per session.
 #   (closure compilation disabled)
 #       --closure 1 mangles the FS namespace's inner method names even
 #       when 'FS' is in EXPORTED_RUNTIME_METHODS, and the documented
@@ -94,11 +91,9 @@ em++ -Oz -DNDEBUG \
   -sMODULARIZE=1 \
   -sEXPORT_ES6=1 \
   -sEXPORT_NAME=createLibtfmx \
-  -sSINGLE_FILE=1 \
   -sENVIRONMENT=worker \
   -sFORCE_FILESYSTEM=1 \
   -sALLOW_MEMORY_GROWTH=1 \
-  -sWASM_ASYNC_COMPILATION=0 \
   -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","FS","HEAPU8","HEAP16"]' \
   -o "${OUT}"
 

@@ -232,6 +232,23 @@ export class AudioPlayer {
   // the same context. The cost (worklet module fetch + compile) is paid
   // once per session on the first TFMX play and is absorbed by Player.tsx's
   // existing "Loading..." state.
+  // libtfmx WASM compiled once on the MAIN thread. Safari's AudioWorklet
+  // hangs on emscripten's in-worklet async instantiation, so we compile here
+  // and hand the WebAssembly.Module to the processor via processorOptions.
+  // Cached across worklet re-registrations.
+  private tfmxWasmModule?: WebAssembly.Module;
+  private compileTfmxWasm_(): Promise<WebAssembly.Module> {
+    if (this.tfmxWasmModule) return Promise.resolve(this.tfmxWasmModule);
+    return fetch("/libtfmx.worklet.wasm")
+      .then((r) => {
+        if (!r.ok)
+          throw new Error(`libtfmx.worklet.wasm fetch failed: ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then((bytes) => WebAssembly.compile(bytes))
+      .then((mod) => (this.tfmxWasmModule = mod));
+  }
+
   private ensureTfmx(): Promise<void> {
     if (!this.tfmxReady) {
       // If a previous attempt registered a node but the chain still
@@ -242,13 +259,20 @@ export class AudioPlayer {
         try { this.tfmxNode.disconnect(); } catch { /* not connected */ }
         this.tfmxNode = undefined;
       }
-      const chain = this.context.audioWorklet
-        .addModule("/tfmx.worklet.js")
-        .then(() => {
+      const chain = Promise.all([
+        this.context.audioWorklet.addModule("/tfmx.worklet.js"),
+        this.compileTfmxWasm_(),
+      ])
+        .then(([, wasmModule]) => {
           this.tfmxNode = new AudioWorkletNode(this.context, "tfmx-processor", {
             numberOfInputs: 0,
             numberOfOutputs: 1,
             outputChannelCount: [2],
+            // Main-thread-compiled libtfmx WASM. Safari's AudioWorklet hangs
+            // if the worklet instantiates the module itself, so we compile it
+            // here and hand the WebAssembly.Module across; the processor reads
+            // it from processorOptions and does a synchronous instantiation.
+            processorOptions: { wasmModule },
           });
           this.tfmxNode.port.onmessage = (msg) => this.handleTfmxMessage_(msg);
           tfmxDbg("tfmx node created");

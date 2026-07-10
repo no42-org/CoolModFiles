@@ -30,37 +30,60 @@ let initErrorDetail = ''
 // event on any instance that's currently waiting on M.
 const tfxInstances = new Set()
 
-createLibtfmx()
-	.then(mod => {
-		M = mod
-		for (const proc of tfxInstances) {
-			if (proc.pendingPlay) {
-				const val = proc.pendingPlay
-				proc.pendingPlay = null
-				proc._play(val)
-			}
-		}
-	})
-	.catch(e => {
-		console.error('[tfmx-processor] init failed', e)
+let initStarted = false
+
+// Instantiate libtfmx from a WebAssembly.Module compiled on the MAIN thread
+// and handed in via the AudioWorkletNode's processorOptions. Safari's
+// AudioWorkletGlobalScope hangs on emscripten's in-worklet async WASM
+// instantiation (createLibtfmx() never resolves — the processor loads but
+// decodes nothing, a silent "Couldn't play" on Safari while Chromium/Firefox
+// work). Compiling on the main thread and doing only a SYNCHRONOUS
+// `new WebAssembly.Instance` here — via emscripten's instantiateWasm hook —
+// sidesteps it. Runs once, from the first processor's constructor. See
+// ensureTfmx() in lib/audio-player.ts for the main-thread half.
+function initWithModule(wasmModule) {
+	if (initStarted) return
+	initStarted = true
+	if (!wasmModule) {
 		initFailed = true
-		// WebKit/Safari drops this worklet-thread console.error, AND the old
-		// err message carried no `detail` — so a WASM init failure here showed
-		// up as a bare "Couldn't play this track" with a completely empty
-		// console. Capture the real reason and forward it in the err detail so
-		// the main thread (handleTfmxMessage_) can log/surface it.
-		initErrorDetail = `createLibtfmx() failed: ${e && e.stack ? e.stack : (e && e.message ? e.message : String(e))}`
-		for (const proc of tfxInstances) {
-			if (proc.pendingPlay) {
-				proc.pendingPlay = null
-				proc.port.postMessage({ cmd: 'err', val: 'init', detail: initErrorDetail })
-			}
-		}
+		initErrorDetail = 'no WebAssembly.Module in processorOptions — the main thread must compile and pass it'
+		return
+	}
+	createLibtfmx({
+		instantiateWasm: (imports, successCallback) => {
+			const instance = new WebAssembly.Instance(wasmModule, imports)
+			successCallback(instance)
+			return instance.exports
+		},
 	})
+		.then(mod => {
+			M = mod
+			for (const proc of tfxInstances) {
+				if (proc.pendingPlay) {
+					const val = proc.pendingPlay
+					proc.pendingPlay = null
+					proc._play(val)
+				}
+			}
+		})
+		.catch(e => {
+			console.error('[tfmx-processor] init failed', e)
+			initFailed = true
+			// WebKit/Safari drops this worklet-thread console.error; forward the
+			// real reason in the err `detail` so the main thread can surface it.
+			initErrorDetail = `createLibtfmx() failed: ${e && e.stack ? e.stack : (e && e.message ? e.message : String(e))}`
+			for (const proc of tfxInstances) {
+				if (proc.pendingPlay) {
+					proc.pendingPlay = null
+					proc.port.postMessage({ cmd: 'err', val: 'init', detail: initErrorDetail })
+				}
+			}
+		})
+}
 
 
 class TFX extends AudioWorkletProcessor {
-	constructor() {
+	constructor(options) {
 		super()
 		this.port.onmessage = this.handleMessage_.bind(this)
 		this.paused = false
@@ -93,6 +116,10 @@ class TFX extends AudioWorkletProcessor {
 		// ready. Drained from the module-level createLibtfmx().then handler.
 		this.pendingPlay = null
 		tfxInstances.add(this)
+		// Kick off libtfmx init with the main-thread-compiled WASM module the
+		// facade passed through processorOptions (see ensureTfmx). No-op after
+		// the first instance.
+		initWithModule(options && options.processorOptions && options.processorOptions.wasmModule)
 	}
 
 	process(inputList, outputList, parameters) {
