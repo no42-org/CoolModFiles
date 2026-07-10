@@ -40,6 +40,7 @@ import { AudioPlayer, type EngineKind } from "../lib/audio-player";
 import { mimeForBuffer } from "../lib/recording-magic";
 import { FilenameStyleProvider } from "../lib/filename/context";
 import { type FilenameStyle } from "../lib/filename/amiga-style";
+import { isDnsDataHalf } from "../lib/tfmx/pairs";
 
 const DEFAULT_VOLUME = 80;
 
@@ -914,9 +915,8 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
           const b = buffer as TfmxBuffers;
           // A Dynamic Synthesizer pair must reach MEMFS under its `dns.`/`smp.`
           // names — libtfmx finds the DNS sample bank by that token, not the
-          // `.tfx`→`.sam` guess the other pair conventions use. The data half
-          // of a DNS pair is definitionally `dns.`-prefixed (parseHalfName), so
-          // sniff the original data-half filename here.
+          // `.tfx`→`.sam` guess the other pair conventions use. Derive the flag
+          // from the source's original data-half filename (isDnsDataHalf).
           const dnsDataName =
             source.type === "tfmx-local"
               ? source.tfx.name
@@ -930,7 +930,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             sam: b.sam,
             base: source.base,
             ext: "ext" in source ? source.ext : undefined,
-            dns: /^dns\./i.test(dnsDataName),
+            dns: isDnsDataHalf(dnsDataName),
           });
         } else {
           // Route recordings to the PCM engine by the SOURCE's extension,
