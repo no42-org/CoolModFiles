@@ -626,6 +626,17 @@ export class AudioPlayer {
    * complete and safe classifier; module bytes never reach a sniffer now.
    */
   play(input: ArrayBuffer | TfmxPair, pcmMime: MimeType | null = null): void {
+    // Safari/WebKit suspends the AudioContext aggressively — notably across
+    // the cross-engine worklet switch — which silently freezes the TFMX
+    // worklet's process(): metadata loads but audio never renders and the
+    // position stays at 0:00. Chromium and Firefox tolerate the single
+    // prewarm-time resume() (audio-prewarm.js); Safari does not. Re-assert
+    // resume() at the top of every play() (a no-op if already running). This
+    // call runs in the user-gesture stack — play() is invoked from the
+    // row/track click handler — which is what Safari requires to honour it.
+    if (this.context.state === "suspended") {
+      this.context.resume().catch(() => {});
+    }
     if (isTfmxPair(input)) {
       const wasAhx = this.active === "ahx";
       this.active = "tfmx";
@@ -649,6 +660,13 @@ export class AudioPlayer {
             // could be silently overridden by a deferred play (TFMX→stop).
             if (myGen !== this.tfmxGeneration) return;
             if (!this.tfmxNode) return;
+            // Safari may have re-suspended the context during ensureTfmx()'s
+            // async gap (worklet module fetch/compile + the ahx→tfmx stop
+            // handshake). Re-assert just before the worklet begins rendering,
+            // otherwise process() is never clocked. (See the note in play().)
+            if (this.context.state === "suspended") {
+              this.context.resume().catch(() => {});
+            }
             this.tfmxNode.port.postMessage({
               cmd: "play",
               val: {
