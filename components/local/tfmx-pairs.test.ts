@@ -55,4 +55,13 @@ describe("detectTfmxPairs — single-file handling", () => {
     expect(r.pairs).toHaveLength(1);
     expect(r.pairs[0].base).toBe("fc");
   });
+
+  it("pairs a dns./smp. Dynamic Synthesizer drop as one pair", () => {
+    // Space-bearing Modland base; the music-data (dns) half drives display.
+    const r = detectTfmxPairs([f("dns.starball title"), f("smp.starball title")]);
+    expect(r.singles).toEqual([]);
+    expect(r.unpaired).toEqual([]);
+    expect(r.pairs).toHaveLength(1);
+    expect(r.pairs[0].base).toBe("starball title");
+  });
 });
