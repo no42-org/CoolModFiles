@@ -264,13 +264,19 @@ class TFX extends AudioWorkletProcessor {
 		// Reset paused flag so a pause→stop→play sequence isn't stuck on silence.
 		this.paused = false
 
-		// AudioPlayer.play() posts {tfx, sam?, base, ext?} as ArrayBuffer
+		// AudioPlayer.play() posts {tfx, sam?, base, ext?, dns?} as ArrayBuffer
 		// (structured clone preserves the type); we only need the
 		// ArrayBuffer→Uint8Array wrap for MEMFS writeFile. `sam` is absent
 		// for single-file libtfmx formats (Hippel / Future Composer).
 		const tfxBytes = new Uint8Array(val?.tfx ?? new ArrayBuffer(0))
 		const hasSam = val?.sam != null
 		const samBytes = hasSam ? new Uint8Array(val.sam) : null
+		// Dynamic Synthesizer (Chris Huelsbeck) pairs: libtfmx's DNS decoder
+		// finds its sample bank by the `dns.`↔`smp.` filename token, NOT the
+		// generic `.tfx`→`.sam` guess the Huelsbeck-TFMX conventions use. So a
+		// DNS pair written as `<base>.tfx`/`<base>.sam` fails to content-detect
+		// (verified: load returns 0). Write DNS halves under `dns.`/`smp.`.
+		const isDnsPair = hasSam && val?.dns === true
 		// Sanitise to a filename-safe ASCII slug. libtfmx uses fopen
 		// internally; spaces and unicode in pair base-names (e.g. "Apidya - Load")
 		// would otherwise force quoting concerns. `|| 'song'` covers the
@@ -287,8 +293,8 @@ class TFX extends AudioWorkletProcessor {
 
 		const vdir = '/song'
 		try { M.FS.mkdir(vdir) } catch { /* exists from a previous play */ }
-		const vTfx = `${vdir}/${base}${musicExt}`
-		const vSam = hasSam ? `${vdir}/${base}.sam` : ''
+		const vTfx = isDnsPair ? `${vdir}/dns.${base}` : `${vdir}/${base}${musicExt}`
+		const vSam = !hasSam ? '' : (isDnsPair ? `${vdir}/smp.${base}` : `${vdir}/${base}.sam`)
 		// Record the paths BEFORE writing so a partial-success failure
 		// (vTfx written, vSam throws) is still cleaned up by the next
 		// _stop / _unlinkVirtual. Empty vSam is skipped by _unlinkVirtual.

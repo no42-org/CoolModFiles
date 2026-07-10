@@ -66,6 +66,7 @@ void HippelDecoder::reset() {
             voiceVars[v].pitchBendTime =
             voiceVars[v].pitchBendDelayFlag = 0;
         voiceVars[v].transpose =
+            voiceVars[v].transposeNew =
             voiceVars[v].soundTranspose =
             voiceVars[v].seqTranspose = 0;
             voiceVars[v].portaSpeed =
@@ -118,6 +119,7 @@ void HippelDecoder::clearFormat() {
     songEnd = false;
     songPosCurrent = 0;
     duration = 0;
+    blacklisted = false;
 
     pInitFunc = 0;
     
@@ -142,8 +144,8 @@ void HippelDecoder::clearFormat() {
         traits.porta80SetSnd =
         traits.isSMOD =
         traits.lowerPeriods =
-        traits.portaWeaker =
-        traits.blacklisted = false;
+        traits.avoidTRglitch =
+        traits.portaWeaker = false;
     traits.periodMin = FC14_PERIOD_MIN;
     traits.periodMax = FC14_PERIOD_MAX;
 
@@ -178,7 +180,7 @@ bool HippelDecoder::init(void *data, udword length, int songNumber) {
 #endif
     udword newLen;
     
-    if (data==0 || length==0 ) {  // re-init mode
+    if ( (data==0 || length==0) && admin.initialized) {  // re-init mode
         goto mainInit;
     }
 
@@ -337,24 +339,6 @@ void HippelDecoder::killChannel(VoiceVars& voiceX) {
 void HippelDecoder::prepareChannelUpdate(VoiceVars& voiceX) {
     voiceX.ch->off();       // Disable channel right now.
     voiceX.trigger = true;  // Enable channel later.
-}
-
-void HippelDecoder::takeNextBufChecked(VoiceVars& voiceX) {
-    // TODO
-    if (voiceX.ch->paula.start >= fcBuf.tellBegin()+input.len) {
-        voiceX.ch->paula.start = silentSample.pStart;
-        voiceX.ch->paula.length = 1;
-        voiceX.ch->takeNextBuf();
-        return;
-    }
-    if ( (voiceX.ch->paula.start+voiceX.ch->paula.length) > fcBuf.tellBegin()+input.len ) {
-        voiceX.ch->paula.length = (fcBuf.tellBegin()+input.len)-voiceX.ch->paula.start;
-    }
-    voiceX.ch->takeNextBuf();
-}
-
-ubyte* HippelDecoder::makeSamplePtr(udword offset) {
-    return(fcBuf.tellBegin() + offset);
 }
 
 int HippelDecoder::run() {

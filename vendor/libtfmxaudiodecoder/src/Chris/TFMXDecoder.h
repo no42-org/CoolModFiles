@@ -85,6 +85,15 @@ class TFMXDecoder : public Decoder {
         udword trackTableEnd;
     } offsets;
 
+    enum ExecOrder {
+        // SEQ : sequencer
+        // MAC : macro processing
+        // MOD : modulation/effects processing
+        SEQ_MOD_MAC,
+        MOD_MAC_SEQ,
+        MAC_MOD_SEQ
+    };
+
     struct Admin {
         sword speed, count;  // speed and speed count
         int startSpeed, startSong;
@@ -154,8 +163,11 @@ class TFMXDecoder : public Decoder {
             udword step, stepSaved;
             sword wait;
             ubyte loop;
-            bool skip, extraWait;
+            // deliberately not using enum/const yet
+            sbyte state;  // -1 = enabled, 0 = skip, 1 = init
+            bool extraWait;
             bool delayedOff, delayedOn;
+            bool branchIfSame;
         } macro;
         
         sword waitOnDMACount;
@@ -232,6 +244,7 @@ class TFMXDecoder : public Decoder {
 
     bool isMerged();
     bool loadSamplesFile();
+    bool loadSamplesFile(const std::string &path);
     void setTFMXv1();
     void traitsByChecksum();  // final step after successful initialization
     void findSongs();
@@ -247,6 +260,7 @@ class TFMXDecoder : public Decoder {
     uword noteToPeriod(int);
     void runMain();
     void processPTTR(Track&);
+    void playerCommon();
 
     void processModulation(VoiceVars&);
     void addBegin(VoiceVars&);
@@ -279,6 +293,8 @@ class TFMXDecoder : public Decoder {
     PattCmdFuncPtr PattCmdFuncs[(0xff-0xf0)+1] = { };
     
     bool getTrackMute(ubyte);
+    void resetSequencer();
+    void nextTrackStep();
     void processTrackStep();
     void trackCmd_Stop(udword);
     void trackCmd_Loop(udword);
@@ -357,7 +373,7 @@ class TFMXDecoder : public Decoder {
     };
     
     void macroFunc_AddNote(VoiceVars&);
-    void macroFunc_AddNote_sub(VoiceVars&,ubyte);
+    void macroFunc_AddNote_sub(VoiceVars&,ubyte,sword);
     MacroDef macroDef_AddNote = { "AddNote     xx/xxxx  note/detune",
                                   &TFMXDecoder::macroFunc_AddNote
     };
@@ -389,9 +405,6 @@ class TFMXDecoder : public Decoder {
 
     void macroFunc_AddVolNote(VoiceVars&);  // actually $00-$40
     // +AddNote variant
-    // Replaces AddVolume by default. Potentially harmless,
-    // since 'bb' arg must be set to 0xfe in order to activate the
-    // extra behaviour, and AddVolume doesn't use 'bb' arg.
     MacroDef macroDef_AddVolNote = { "Addvol+note xx/fe/xx note/CONST./volume",
                                     &TFMXDecoder::macroFunc_AddVolNote
     };
@@ -533,6 +546,20 @@ class TFMXDecoder : public Decoder {
                              &TFMXDecoder::macroFunc_29
     };
 
+    // NB! This macro command is not named anywhere. It's used extremely rarely,
+    // but is a NOP except in some of the Gem'Z soundtrack.
+    void macroFunc_BranchIfSame(VoiceVars&);
+    MacroDef macroDef_BranchIfSame = { "BranchIfSame   xxxx        step",
+                                       &TFMXDecoder::macroFunc_BranchIfSame
+    };
+
+    // NB! This macro command is not named anywhere. It's used only by
+    // Turrican III title.
+    void macroFunc_KeyUp(VoiceVars&);
+    MacroDef macroDef_KeyUp = { "Key up      ../.x/.. channel",
+                                &TFMXDecoder::macroFunc_KeyUp
+    };
+
     
     bool trackCmdUsed[TRACK_CMD_MAX+1];
     bool patternCmdUsed[16];
@@ -542,14 +569,23 @@ class TFMXDecoder : public Decoder {
         // format
         bool compressed;
         // player variants
+        // Track individual differences for now.
+        // Eventually, some may be grouped together and eliminated.
         bool finetuneUnscaled;
         bool vibratoUnscaled;
+        bool vibratoTimeMask;
         bool portaUnscaled;
         bool portaOverride;
         bool noNoteDetune;
+        bool setNoteV1;
+        bool extraWaitV1;
+        bool macroLoopExtraWait;
         bool bpmSpeed5;
         bool noAddBeginCount;
+        bool noDelayedDMAon;
         bool noTrackMute;
+        // Main player order of execution.
+        ExecOrder execOrder;
     } variant;
 
     struct {

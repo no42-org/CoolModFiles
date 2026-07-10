@@ -54,15 +54,15 @@ TFMXDecoder::~TFMXDecoder() {
 void TFMXDecoder::reset() {
     cmd.aa = cmd.bb = cmd.cd = cmd.ee = 0;
 
-    for (ubyte t=0; t<sequencer.tracks; t++) {
+    for (ubyte t=0; t<TRACKS_MAX; t++) {
         Track& tr = track[t];
-        tr.on = getTrackMute(t);
+        tr.on = false;
         tr.PT = 0xff; tr.TR = 0;
         tr.pattern.offset = tr.pattern.step = 0;
         tr.pattern.wait = 0;
         tr.pattern.loops = -1;
     }
-    for (ubyte v=0; v<voices; v++) {
+    for (ubyte v=0; v<VOICES_MAX; v++) {
         VoiceVars& voice = voiceVars[v];
         
         voice.voiceNum = v;
@@ -85,10 +85,12 @@ void TFMXDecoder::reset() {
 
         voice.macro.wait = 1;
         voice.macro.step = 0;
-        voice.macro.skip = true;
+        voice.macro.state = 0;
         voice.macro.loop = 0xff;
         voice.macro.extraWait = true;
         voice.macro.delayedOff = voice.macro.delayedOn = false;
+        voice.macro.offset = 0;
+        voice.macro.branchIfSame = false;
         
         voice.sid.targetOffset = 0x100*v + 4;
         voice.sid.targetLength = 0;
@@ -126,7 +128,7 @@ void TFMXDecoder::setPaulaVoice(ubyte v, PaulaVoice* p) {
 void TFMXDecoder::setPath(std::string path) {
     input.path = path;
     // Since most modules in these formats don't store a title/name internally,
-    // this helper function contructs a name from the filename.
+    // this helper function constructs a name from the filename.
     name.clear();
     std::size_t found = path.find_last_of("/\\");
     if (found != std::string::npos) {
@@ -156,13 +158,14 @@ bool TFMXDecoder::init(void *data, udword length, int songNumber) {
         if (!admin.initialized) {
             return false;
         }
-        data = input.buf;
-        length = input.len;
     }
     else {  // invalidate what has been found out before
         input.smplLoaded = false;
         input.mdatSize = input.smplSize = 0;
 
+        if ( !detect(data,length) ) {
+            return false;
+        }
         // If we still have a sufficiently large buffer, reuse it.
         udword newLen = length;
         if (newLen > input.bufLen) {
@@ -178,10 +181,6 @@ bool TFMXDecoder::init(void *data, udword length, int songNumber) {
         
         // Set up smart pointer for unsigned input buffer access.
         pBuf.setBuffer(input.buf,input.bufLen);
-
-        if ( !detect(input.buf,input.bufLen) ) {
-            return false;
-        }
     }
 
     // Check whether it's a single-file format.
@@ -231,6 +230,7 @@ bool TFMXDecoder::init(void *data, udword length, int songNumber) {
     }
     
     offsets.sampleData = h+input.mdatSize;
+    offsets.silence = offsets.sampleData;
     // TFMX clears the first two words for one-shot samples.
     udword o = offsets.sampleData;
     pBuf[o] = pBuf[o+1] = pBuf[o+2] = pBuf[o+3] = 0;
@@ -263,10 +263,6 @@ bool TFMXDecoder::init(void *data, udword length, int songNumber) {
         }            
     }
 
-    offsets.silence = offsets.sampleData;
-    // TFMX clears the first dword here for one shot samples e.g.
-    pBuf[offsets.silence] = pBuf[offsets.silence+1] = pBuf[offsets.silence+2] = pBuf[offsets.silence+3] = 0;
-
     // Evaluate the compress identification fields at $0A and $0C.
     // In rare cases that part of the header has been overwritten
     // and is invalid.
@@ -287,6 +283,8 @@ bool TFMXDecoder::init(void *data, udword length, int songNumber) {
     setRate(50<<8);
     voices = 4;
 
+    // Move these, if ever encapsulating sequencer.
+    // So far, they have been constant, btw.
     sequencer.tracks = 8;
     sequencer.step.size = 16;
 
@@ -297,12 +295,18 @@ bool TFMXDecoder::init(void *data, udword length, int songNumber) {
     variant.compressed = false;
     variant.finetuneUnscaled = false;
     variant.vibratoUnscaled = false;
+    variant.vibratoTimeMask = false;
     variant.portaUnscaled = false;
     variant.portaOverride = false;
     variant.noNoteDetune = false;
+    variant.setNoteV1 = false;
+    variant.extraWaitV1 = false;
+    variant.macroLoopExtraWait = false;
     variant.bpmSpeed5 = false;
     variant.noAddBeginCount = false;
+    variant.noDelayedDMAon = false;
     variant.noTrackMute = false;
+    variant.execOrder = MAC_MOD_SEQ;
     
     PattCmdFuncs[0] = &TFMXDecoder::pattCmd_End;
     PattCmdFuncs[1] = &TFMXDecoder::pattCmd_Loop;
@@ -390,13 +394,24 @@ bool TFMXDecoder::init(void *data, udword length, int songNumber) {
     MacroDefs[0x28] = &macroDef_28;
     MacroDefs[0x29] = &macroDef_29;
 
+    MacroDefs[0x30] = &macroDef_BranchIfSame;
+    MacroDefs[0x31] = &macroDef_KeyUp;
+
+    // TFMX v1.x up to and including v2.2 cannot be distinguished from
+    // the later TFMX and/or variants. Unless the very rarely used old
+    // header tag is used. And since the old-style effects (particularly
+    // non-scaled vibrato and portamento) may be strictly required by
+    // music created with v1/v2, a checksum based detection of specific
+    // modules may be the only way. And the differences between v1 and v2
+    // are of little use when detecting file contents.
+
     // TFMX v1.x
     if ( ((readBEudword(pBuf,offsets.header) == TFMX_HEX) &&  // old header
           (pBuf[offsets.header+4] == 0x20))
          || (input.versionHint == 1) ) {  // from TFHD
         setTFMXv1();
     }
-    // TFMX v2.x / TFMX Professional
+    // aka TFMX Professional
     else {  // also  input.versionHint == 2   // from TFHD
         formatName = FORMAT_NAME_PRO;
     }
@@ -404,6 +419,9 @@ bool TFMXDecoder::init(void *data, udword length, int songNumber) {
 
     // Last the rare checksum adjustments.
     traitsByChecksum();
+    if (blacklisted) {
+        return false;
+    }
 
 // ----------
 
@@ -435,6 +453,11 @@ bool TFMXDecoder::init(void *data, udword length, int songNumber) {
         duration += run();
     } while ( !songEnd && (duration<1000*60*59));
     loopMode = loopModeBak;
+#if defined(DEBUG)
+    cout << "Duration of " << input.path << "  #" << dec << admin.startSong << "  ";
+    dumpTimestamp(duration);
+    cout << endl;
+#endif
 
     adjustTraitsPost();
     dumpModule();
@@ -446,30 +469,6 @@ bool TFMXDecoder::init(void *data, udword length, int songNumber) {
 // decoder currently chosen song.
 void TFMXDecoder::restart() {
     reset();
-    softRestart();
-}
-
-void TFMXDecoder::softRestart() {
-    songEnd = false;
-    songPosCurrent = 0;
-    tickFPadd = 0;
-    triggerRestart = false;
-
-    sequencer.step.next = false;
-    sequencer.loops = -1;
-    for (int step = 0; step < TRACK_STEPS_MAX; step++ ) {
-        sequencer.stepSeenBefore[step] = false;
-    }
-
-    // Not all songs are designed for looping cleanly, so aid them.
-    for (ubyte v=0; v<voices; v++) {
-        VoiceVars& voice = voiceVars[v];
-        voice.keyUp = true;
-        voice.volume = voice.outputVolume = 0;
-    }
-    fade.active = false;
-    fade.volume = fade.target = 64;
-    fade.delta = 0;
 
     uword so = vSongs[admin.startSong]<<1;
     sequencer.step.first = sequencer.step.current = readBEuword(pBuf,offsets.header+0x100+so);
@@ -484,20 +483,51 @@ void TFMXDecoder::softRestart() {
     admin.startSpeed = admin.speed;
     admin.count = 0;  // quick start
 #if defined(DEBUG)
-    cout << "Sequencer: " << dec << (int)sequencer.step.first
-         << " to " << (int)sequencer.step.last
+    cout << "Sequencer: " << tohex((uword)sequencer.step.first)
+         << " to " << tohex((uword)sequencer.step.last)
          << " / speed " << (int)admin.speed << endl;
 #endif
+    softRestart();
+}
+
+// The bits that also are needed when restarting songs that end
+// without looping.
+void TFMXDecoder::softRestart() {
+    songEnd = false;
+    songPosCurrent = 0;
+    tickFPadd = 0;
+    triggerRestart = false;
+
+    // Not all songs are designed for looping cleanly, so aid them.
+    for (ubyte v=0; v<voices; v++) {
+        VoiceVars& voice = voiceVars[v];
+        voice.keyUp = true;
+        voice.volume = voice.outputVolume = 0;
+    }
+    fade.active = false;
+    fade.volume = fade.target = 64;
+    fade.delta = 0;
+
+    resetSequencer();
     processTrackStep();
 }
+
+// TFMX v2.2 is mostly like TFMX v1.x, but it adds macros 0x1a to 0x1e
+// and enhances a few (like Addvol -> Addvol+note). There is no setTFMXv2()
+// method, because it can be treated as a variant of v1.
 
 void TFMXDecoder::setTFMXv1() {
     formatName = FORMAT_NAME;
     variant.noAddBeginCount = true;
     variant.vibratoUnscaled = true;
+    variant.vibratoTimeMask = true;
     variant.finetuneUnscaled = true;
-    variant.portaUnscaled = false;
+    variant.portaUnscaled = true;
     variant.portaOverride = true;
+    variant.setNoteV1 = true;
+    variant.extraWaitV1 = true;
+    variant.noDelayedDMAon = true;
+    variant.execOrder = SEQ_MOD_MAC;
     MacroDefs[0xd] = &macroDef_AddVolume;
     // max. macro cmd = $19
     for (ubyte m = 0x1a; m<0x40; m++) {
@@ -599,12 +629,16 @@ void TFMXDecoder::takeNextBufChecked(VoiceVars& v) {
         v.ch->paula.length = (input.len - v.paulaOrig.offset)>>1;
         v.ch->paula.start = makeSamplePtr( v.paulaOrig.offset );
     }
+    // an "else" case here (see DNSDecoder.cpp) is not needed by players
+    // that always set start before length
     v.ch->takeNextBuf();
 }
 
 ubyte* TFMXDecoder::makeSamplePtr(udword offset) {
     return(pBuf.tellBegin() + offset);
 }
+
+// ----------------------------------------------------------------------
 
 void TFMXDecoder::handleWaitOnPaulaDone() {
     // Pretend we have an interrupt handler that has evaluated
@@ -623,7 +657,9 @@ void TFMXDecoder::handleWaitOnPaulaDone() {
             }
             if ( d > voice.waitOnDMACount ) {
                 voice.waitOnDMACount = -1;
-                voice.macro.skip = false;
+                if (voice.macro.state == 0) {
+                    voice.macro.state = -1;
+                }
             }
             else {
                 voice.waitOnDMACount -= d;
@@ -656,6 +692,7 @@ void TFMXDecoder::handleDelayedDMAon() {
 void TFMXDecoder::runMain() {
     if (--admin.count < 0) {
         admin.count = admin.speed;  // reload
+        int evalMaxLoops = RECURSE_LIMIT;
         do {
             sequencer.step.next = false;
             int countInactive = 0;
@@ -693,9 +730,10 @@ void TFMXDecoder::runMain() {
                 songEnd = false;
                 if (triggerRestart) {
                     softRestart();
+                    processTrackStep();
                 }
             }
-        } while (sequencer.step.next);
+        } while (sequencer.step.next && --evalMaxLoops>0 );
     }
 }
 
@@ -723,7 +761,7 @@ void TFMXDecoder::processPTTR(Track& tr) {
             tr.PT = 0xff;
             ubyte vNum = channelToVoiceMap[tr.TR & (sizeof(channelToVoiceMap)-1)];
             VoiceVars& v = voiceVars[vNum];
-            v.macro.skip = true;
+            v.macro.state = 0;
             v.ch->off();
         }
     }
@@ -733,19 +771,10 @@ int TFMXDecoder::run() {
     if (!admin.initialized) {
         return 0;
     }
-    if ( !songEnd || loopMode ) {
-        handleWaitOnPaulaDone();
-        handleDelayedDMAoff();
-        for (ubyte v=0; v<voices; v++) {
-            if ( !songEnd || loopMode ) {
-                VoiceVars& voice = voiceVars[v];
-                processMacroMain( voice );
-                processModulation( voice );
-                voice.ch->paula.period = voice.outputPeriod;
-            }
-        }
-        runMain();
-    }
+#if defined(DEBUG_RUN)
+    dumpTimestamp(songPosCurrent);
+#endif
+    playerCommon();
     tickFPadd += tickFP;
     int tick = tickFPadd>>8;
     tickFPadd &= 0xff;
@@ -753,13 +782,52 @@ int TFMXDecoder::run() {
     return tick;
 }
 
-void TFMXDecoder::noteCmd() {
+void TFMXDecoder::playerCommon() {
 #if defined(DEBUG_RUN)
-    cout << "  ::noteCmd()" << endl;
+    cout << "  playerCommon()" << endl;
 #endif
+    if ( !songEnd || loopMode ) {
+        handleWaitOnPaulaDone();
+        handleDelayedDMAoff();
+
+        if (variant.execOrder == MOD_MAC_SEQ) {
+            for (ubyte v=0; v<voices; v++) {
+                VoiceVars& voice = voiceVars[v];
+                processModulation( voice );
+                processMacroMain( voice );
+                voice.ch->paula.period = voice.outputPeriod;
+            }
+            runMain();
+        }
+        else if (variant.execOrder == SEQ_MOD_MAC) {
+            runMain();
+            for (ubyte v=0; v<voices; v++) {
+                VoiceVars& voice = voiceVars[v];
+                processModulation( voice );
+                processMacroMain( voice );
+                voice.ch->paula.period = voice.outputPeriod;
+            }
+        }
+        else {  // if (variant.execOrder == MAC_MOD_SEQ) {
+            for (ubyte v=0; v<voices; v++) {
+                VoiceVars& voice = voiceVars[v];
+                processMacroMain( voice );
+                processModulation( voice );
+                voice.ch->paula.period = voice.outputPeriod;
+            }
+            runMain();
+        }
+
+        handleDelayedDMAon();
+    }
+}
+
+void TFMXDecoder::noteCmd() {
     ubyte vNum = channelToVoiceMap[cmd.cd & (sizeof(channelToVoiceMap)-1)];
     VoiceVars& v = voiceVars[vNum];
-
+#if defined(DEBUG_RUN)
+    cout << "  ::noteCmd()  v" << tohex(v.voiceNum) << endl;
+#endif
     if (cmd.aa == 0xfc) {  // lock note
     }
     else if (cmd.aa == 0xf7) {  // envelope
@@ -769,6 +837,8 @@ void TFMXDecoder::noteCmd() {
         v.envelope.target = cmd.ee;
     }
     else if (cmd.aa == 0xf6) {  // vibrato
+        // Unlike the variants of the vibrato macro command,
+        // here the bitmask has never been dropped.
         ubyte tmp = cmd.bb&0xfe;
         v.vibrato.time = tmp;
         v.vibrato.count = tmp>>1;
@@ -789,8 +859,12 @@ void TFMXDecoder::noteCmd() {
         v.notePrevious = v.note;
         v.note = cmd.aa;
         v.keyUp = false;
-        v.macro.offset = getMacroOffset(cmd.bb & 0x7f);
-        initMacro(v);
+        udword mo = getMacroOffset(cmd.bb & 0x7f);
+        if (mo != v.macro.offset) {
+            v.macro.branchIfSame = false;
+        }
+        v.macro.offset = mo;
+        v.macro.state = 1;  // delayed macro init
     }
     else {  // cmd.aa >= $c0   portamento note
         v.portamento.count = cmd.bb;

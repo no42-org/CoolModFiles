@@ -912,6 +912,17 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
           source.type === "tfmx-single-library"
         ) {
           const b = buffer as TfmxBuffers;
+          // A Dynamic Synthesizer pair must reach MEMFS under its `dns.`/`smp.`
+          // names — libtfmx finds the DNS sample bank by that token, not the
+          // `.tfx`→`.sam` guess the other pair conventions use. The data half
+          // of a DNS pair is definitionally `dns.`-prefixed (parseHalfName), so
+          // sniff the original data-half filename here.
+          const dnsDataName =
+            source.type === "tfmx-local"
+              ? source.tfx.name
+              : source.type === "tfmx-library"
+                ? (source.tfxPath.split("/").pop() ?? "")
+                : "";
           // `sam` is undefined for single-file sources; `ext` (present only
           // on the single-file variants) drives the worklet MEMFS filename.
           player.play({
@@ -919,6 +930,7 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
             sam: b.sam,
             base: source.base,
             ext: "ext" in source ? source.ext : undefined,
+            dns: /^dns\./i.test(dnsDataName),
           });
         } else {
           // Route recordings to the PCM engine by the SOURCE's extension,

@@ -36,6 +36,9 @@ export type TfmxPair = {
   sam?: ArrayBuffer | Uint8Array;
   base?: string;
   ext?: string;
+  // Dynamic Synthesizer pair: write the halves under `dns.`/`smp.` MEMFS
+  // names instead of `.tfx`/`.sam` so libtfmx's DNS sample discovery works.
+  dns?: boolean;
 };
 
 export type AudioPlayerConfig = ChiptuneConfig;
@@ -658,6 +661,7 @@ export class AudioPlayer {
                 sam: input.sam,
                 base: input.base ?? "song",
                 ext: input.ext,
+                dns: input.dns,
               },
             });
           })

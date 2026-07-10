@@ -1,4 +1,4 @@
-AC_INIT([libtfmxaudiodecoder], [1.0.7])
+AC_INIT([libtfmxaudiodecoder], [1.0.14])
 AC_CONFIG_SRCDIR([src/Decoder.cpp])
 AM_INIT_AUTOMAKE([foreign])
 AC_CONFIG_HEADERS([src/Config.h])
@@ -8,6 +8,8 @@ LIBVERSION=1:0:0
 AC_SUBST(LIBVERSION)dnl libtool-style version
 
 AC_CANONICAL_HOST
+
+AC_LANG([C++])
 
 AC_PROG_CXX
 AC_PROG_AR
@@ -19,7 +21,7 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 AC_PATH_PROG(RM,rm,rm)
 
-AC_LANG([C])
+dnl AC_LANG([C])
 
 AC_C_INLINE
 AC_CHECK_HEADER_STDBOOL
@@ -30,8 +32,7 @@ AC_TYPE_UINT16_T
 AC_TYPE_INT32_T
 AC_TYPE_UINT32_T
 
-AC_LANG([C++])
-
+AX_CXX_COMPILE_STDCXX([11],[],[])
 AC_SUBST(CXXFLAGS)
 
 LT_INIT([])
@@ -39,5 +40,6 @@ LT_INIT([])
 AC_CONFIG_FILES([Makefile libtfmxaudiodecoder.pc \
 src/Makefile \
 src/Chris/Makefile \
+src/Chris/DNS/Makefile \
 src/Jochen/Makefile])
 AC_OUTPUT

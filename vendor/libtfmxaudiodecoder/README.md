@@ -1,7 +1,3 @@
-# Kickstarter campaign of "Wings of Death - Reworked Anthology" by the German Remix Group is live!
-* https://www.kickstarter.com/projects/drf/wings-of-death-reworked-anthology
-
-
 # C language wrapper library for TFMX audio decoding
 https://github.com/mschwendt/libtfmxaudiodecoder
 
@@ -12,11 +8,12 @@ Commodore Amiga era of computing:
 
  - TFMX by [Jochen Hippel](https://en.wikipedia.org/wiki/Jochen_Hippel) (incl. the ripoffs ``Future Composer`` and MCMD)
 
- - TFMX by [Chris Hülsbeck](https://www.huelsbeck.com) (``The Final Musicsystem eXtended``)
+ - TFMX by [Chris Hülsbeck](https://www.huelsbeck.com) (``The Final Musicsystem eXtended``)  
+   plus the earlier ``Dynamic Synthesizer``
 
  - file format modifications TFMXPACK, TFMX-MOD, TFHD + some unnamed modpacks
 
-Despite sharing the name tag TFMX and the 7V feature, it's two music players
+Despite sharing the name tag TFMX and the 7V (seven voices) feature, it's two music players
 that are vastly different. Even simple concepts like ADSR volume envelopes
 are done differently.
 
@@ -30,19 +27,15 @@ some modules.
 
 ## Compatibility
 
-Tell me! 
-https://github.com/mschwendt/libtfmxaudiodecoder/issues
-
-I've mostly listened to the ``Logical`` soundtrack by
-[Rudolf Stember](http://www.stember.com/) in a looping playlist (since
-it's among my favourite TFMX modules), and heard ``Monster Time`` and
-``Rest In Peace`` by Jan Krolzig for the first time. Whoah!
-
-The library has been tested with a large number of files from old
+The library is tested with a large number of files from old
 and current major collections like [Modland](https://modland.com/) and
 [ExoticA](https://www.exotica.org.uk/wiki/Category:Amiga_Music_Formats).
 During pre-release testing, multiple issues reported in bug trackers of
 other music players have been reviewed, too.
+
+Some [bad music files](README_BAD.md) have been found. If you find them in
+your own collection, consider deleting them if repaired copies are not
+available.
 
 If you are an author of a music player, please give this library a try,
 and consider adding a plug-in, if you like what you hear.
@@ -52,28 +45,31 @@ and consider adding a plug-in, if you like what you hear.
 Within music collections, the music data files recognized by this library
 usually use a file name extension from this list:
 
-    .tfx, .tfm, .mdat, .tfmx
-    .hip, .hipc, .hip7, .mcmd
-    .fc, .fc3, .fc4, .fc13, .fc14, .smod
+      .tfx, .tfm, .mdat, .tfmx
+      .hip, .hipc, .hip7, .mcmd
+      .fc, .fc3, .fc4, .fc13, .fc14, .smod
+      .sog, .soc, .s7g
 
-Some of the music comes as a pair of files (music data + separate samples file), if it has not been converted
-into a single-file format, e.g.:
+However, music collections on the Internet may be Amiga-centric and
+follow different file naming practices. Such as using a file name prefix
+instead of a file name extension.
 
-    foo.mdat + foo.smpl
-    bar.tfx + bar.sam
+[Read more](README_filenames.md) about TFMX file naming schemes.
 
-In case it is the original file naming style from Commodore Amiga, where
-the file type name extension was a prefix,
+Whether you can load a music file into a music/audio player may
+depend largely on whether it strictly filters files by file name extension or
+whether it can load any file. Also, some audio players assign plugins only
+to specific file name extensions. This is a source of problems with files
+following Amiga-centric naming schemes.
 
-    mdat.foo + smpl.foo
-
-it is strongly recommended to rename your files and give them PC-style
-extensions instead. For example, ``.tfx`` and ``.sam`` is a good compromise
+It is strongly recommended to rename your files and give them PC-style
+extensions. For example, ``.tfx`` and ``.sam`` is a good compromise
 for TFMX ``mdat.`` and ``smpl.`` files.
 
 The library backend itself inspects the actual input data while it tries to
 determine the underlying file format. Yet if it's a pair of files, it
-tries to find the second file based on guessing its file name extension.
+tries to find the second file based on guessing its file name extension
+or file name prefix.
 
 The TFMX-editor also used a third file starting with ``info.`` to store
 stuff like names for patterns and macros. As those files are entirely optional,
@@ -87,13 +83,16 @@ collections either.
 * [Qmmp](https://qmmp.ylsoftware.com/) with [this input plugin](https://github.com/TTK-qmmp/qmmp-tfmx)
 * [rePlayer](https://github.com/arnaud-neny/rePlayer) includes a prebuilt plugin among a ton of others as to handle a high number of music file formats
 * [TTKMusicPlayer](https://github.com/Greedysky/TTKMusicPlayer) with [this input plugin](https://github.com/TTK-qmmp/qmmp-tfmx)
+* [NostalgicPlayer](https://nostalgicplayer.dk/) as of v3.4.0 includes a port/rewrite to C# of the TFMX/Huelsbeck decoder,
+so that's another option to check out
+
 * ...
 
 ## Links
 
 * https://www.exotica.org.uk/wiki/TFMX
 * https://de.wikipedia.org/wiki/TFMX
-* https://modland.com/ and https://www.exotica.org.uk/wiki/Category:Amiga_Music_Formats
+* https://modland.com/ and https://www.exotica.org.uk/wiki/Category:Amiga_Music_Formats and http://wt.exotica.org.uk/
 * https://chrishuelsbeck.bandcamp.com/
 * http://thethalionsource.w4f.eu/Hippel/hippelm.htm
 * https://remix64.com/ as a hub for the C64 and Amiga remix community.

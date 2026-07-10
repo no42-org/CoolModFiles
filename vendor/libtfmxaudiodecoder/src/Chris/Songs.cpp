@@ -69,8 +69,14 @@ void tfmxaudiodecoder::TFMXDecoder::findSongs() {
         // First step == last step isn't invalid per se,
         // but in corner-cases the tracks don't advance either.
         if (s1==s2) {
+            resetSequencer();
             sequencer.step.current = sequencer.step.first = s1;
             sequencer.step.last = s2;
+            // Reset some sequencer values we rely on.
+            songEnd = false;
+            for (ubyte t=0; t<sequencer.tracks; t++) {
+                track[t].PT = 0xff;
+            }
             processTrackStep();
             int countInactive = 0;
             for (ubyte t=0; t<sequencer.tracks; t++) {
@@ -79,7 +85,8 @@ void tfmxaudiodecoder::TFMXDecoder::findSongs() {
                     countInactive++;
                 }
             }
-            if (countInactive == sequencer.tracks) {
+            if (countInactive == sequencer.tracks ||
+                songEnd) {  // track command STOP can cause immediate song end
 #if defined(DEBUG)
             cout << "WARNING: Skipping inactive song " << hexB(so) << ": " << hexW(s1) << " to " << hexW(s2) << " speed " << hexW(s3) << "  for " << input.path << endl;
 #endif
