@@ -74,8 +74,16 @@ emmake make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" \
 #       libtfmx's load path goes through fopen on the music-data file and
 #       auto-discovers the matching sample file via filename heuristics. We
 #       use MEMFS to register both .tfx and .sam blobs as virtual files.
-#   -sALLOW_MEMORY_GROWTH=1
-#       Some TFMX modules need >16 MB at peak (large sample banks).
+#   -sINITIAL_MEMORY=64MB  (fixed; NOT -sALLOW_MEMORY_GROWTH)
+#       The heap is a FIXED, non-growable ArrayBuffer. Safari's
+#       TextDecoder.decode() THROWS when handed a view over a GROWABLE/
+#       resizable ArrayBuffer (which ALLOW_MEMORY_GROWTH produces), so
+#       tfx_load's fopen → openat → string-read crashed on Safari with
+#       "decode@[native code]" while Chromium/Firefox were fine. Emscripten
+#       6.x removed TEXTDECODER=0 (the pure-JS decoder), so we fix the memory
+#       side instead. 64 MB is far above the >16 MB peak large TFMX sample
+#       banks need (Amiga modules are small); if a module ever exceeds it the
+#       module aborts cleanly (onAbort → err) rather than corrupting.
 #   (closure compilation disabled)
 #       --closure 1 mangles the FS namespace's inner method names even
 #       when 'FS' is in EXPORTED_RUNTIME_METHODS, and the documented
@@ -93,7 +101,7 @@ em++ -Oz -DNDEBUG \
   -sEXPORT_NAME=createLibtfmx \
   -sENVIRONMENT=worker \
   -sFORCE_FILESYSTEM=1 \
-  -sALLOW_MEMORY_GROWTH=1 \
+  -sINITIAL_MEMORY=64MB \
   -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","FS","HEAPU8","HEAP16"]' \
   -o "${OUT}"
 
