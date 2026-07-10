@@ -251,19 +251,34 @@ export async function getBuffer(source: Source): Promise<SourceBuffer> {
     case "tfmx-library": {
       // Two parallel /api/library/file fetches. Either rejection
       // propagates and Player.tsx's onError → playNext handles recovery.
-      const [tfxRes, samRes] = await Promise.all([
-        fetch(`/api/library/file?path=${encodeURIComponent(source.tfxPath)}`),
-        fetch(`/api/library/file?path=${encodeURIComponent(source.samPath)}`),
-      ]);
-      if (!tfxRes.ok)
-        throw new Error(`library tfx fetch failed: ${tfxRes.status}`);
-      if (!samRes.ok)
-        throw new Error(`library sam fetch failed: ${samRes.status}`);
-      const [tfx, sam] = await Promise.all([
-        tfxRes.arrayBuffer(),
-        samRes.arrayBuffer(),
-      ]);
-      return { tfx, sam };
+      const tfxUrl = `/api/library/file?path=${encodeURIComponent(source.tfxPath)}`;
+      const samUrl = `/api/library/file?path=${encodeURIComponent(source.samPath)}`;
+      try {
+        const [tfxRes, samRes] = await Promise.all([fetch(tfxUrl), fetch(samUrl)]);
+        if (!tfxRes.ok)
+          throw new Error(`library tfx fetch failed: ${tfxRes.status}`);
+        if (!samRes.ok)
+          throw new Error(`library sam fetch failed: ${samRes.status}`);
+        const [tfx, sam] = await Promise.all([
+          tfxRes.arrayBuffer(),
+          samRes.arrayBuffer(),
+        ]);
+        return { tfx, sam };
+      } catch (e) {
+        // Surface the real reason — otherwise a fetch rejection (e.g.
+        // Safari's opaque "TypeError: Load failed") bubbles up as a bare
+        // "Couldn't play this track" with nothing in the console.
+        console.error(
+          "[getBuffer tfmx-library] fetch failed",
+          "\n  tfx:",
+          tfxUrl,
+          "\n  sam:",
+          samUrl,
+          "\n  error:",
+          e
+        );
+        throw e;
+      }
     }
     case "tfmx-single-local":
       // Single self-contained file — one buffer, no sample half.

@@ -218,6 +218,23 @@ export class AudioPlayer {
   // the same context. The cost (worklet module fetch + compile) is paid
   // once per session on the first TFMX play and is absorbed by Player.tsx's
   // existing "Loading..." state.
+  // libtfmx WASM compiled once on the MAIN thread. Safari's AudioWorklet
+  // hangs on emscripten's in-worklet async instantiation, so we compile here
+  // and hand the WebAssembly.Module to the processor via processorOptions.
+  // Cached across worklet re-registrations.
+  private tfmxWasmModule?: WebAssembly.Module;
+  private compileTfmxWasm_(): Promise<WebAssembly.Module> {
+    if (this.tfmxWasmModule) return Promise.resolve(this.tfmxWasmModule);
+    return fetch("/libtfmx.worklet.wasm")
+      .then((r) => {
+        if (!r.ok)
+          throw new Error(`libtfmx.worklet.wasm fetch failed: ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then((bytes) => WebAssembly.compile(bytes))
+      .then((mod) => (this.tfmxWasmModule = mod));
+  }
+
   private ensureTfmx(): Promise<void> {
     if (!this.tfmxReady) {
       // If a previous attempt registered a node but the chain still
@@ -228,15 +245,31 @@ export class AudioPlayer {
         try { this.tfmxNode.disconnect(); } catch { /* not connected */ }
         this.tfmxNode = undefined;
       }
-      const chain = this.context.audioWorklet
-        .addModule("/tfmx.worklet.js")
-        .then(() => {
+      const chain = Promise.all([
+        this.context.audioWorklet.addModule("/tfmx.worklet.js"),
+        this.compileTfmxWasm_(),
+      ])
+        .then(([, wasmModule]) => {
           this.tfmxNode = new AudioWorkletNode(this.context, "tfmx-processor", {
             numberOfInputs: 0,
             numberOfOutputs: 1,
             outputChannelCount: [2],
+            // Main-thread-compiled libtfmx WASM. Safari's AudioWorklet hangs
+            // if the worklet instantiates the module itself, so we compile it
+            // here and hand the WebAssembly.Module across; the processor reads
+            // it from processorOptions and does a synchronous instantiation.
+            processorOptions: { wasmModule },
           });
           this.tfmxNode.port.onmessage = (msg) => this.handleTfmxMessage_(msg);
+          // An AudioWorklet fires `processorerror` when the processor's
+          // constructor OR process() throws. On WebKit this otherwise dies
+          // silently — surface it as an onError so the recovery path runs.
+          this.tfmxNode.onprocessorerror = (ev: Event) => {
+            const m = (ev as unknown as { message?: string }).message;
+            console.error("[tfmx-processor] processorerror", m || ev.type);
+            if (this.active === "tfmx")
+              this.fireEvent("onError", { type: "tfmx-processor-error" });
+          };
           // Push the same config object the chiptune wrapper does so the
           // facade's listeners see a consistent meta shape regardless of
           // engine. libtfmx's worklet stores config for parity only — it
@@ -626,6 +659,17 @@ export class AudioPlayer {
    * complete and safe classifier; module bytes never reach a sniffer now.
    */
   play(input: ArrayBuffer | TfmxPair, pcmMime: MimeType | null = null): void {
+    // Safari/WebKit suspends the AudioContext aggressively — notably across
+    // the cross-engine worklet switch — which silently freezes the TFMX
+    // worklet's process(): metadata loads but audio never renders and the
+    // position stays at 0:00. Chromium and Firefox tolerate the single
+    // prewarm-time resume() (audio-prewarm.js); Safari does not. Re-assert
+    // resume() at the top of every play() (a no-op if already running). This
+    // call runs in the user-gesture stack — play() is invoked from the
+    // row/track click handler — which is what Safari requires to honour it.
+    if (this.context.state === "suspended") {
+      this.context.resume().catch(() => {});
+    }
     if (isTfmxPair(input)) {
       const wasAhx = this.active === "ahx";
       this.active = "tfmx";
@@ -649,6 +693,13 @@ export class AudioPlayer {
             // could be silently overridden by a deferred play (TFMX→stop).
             if (myGen !== this.tfmxGeneration) return;
             if (!this.tfmxNode) return;
+            // Safari may have re-suspended the context during ensureTfmx()'s
+            // async gap (worklet module fetch/compile + the ahx→tfmx stop
+            // handshake). Re-assert just before the worklet begins rendering,
+            // otherwise process() is never clocked. (See the note in play().)
+            if (this.context.state === "suspended") {
+              this.context.resume().catch(() => {});
+            }
             this.tfmxNode.port.postMessage({
               cmd: "play",
               val: {

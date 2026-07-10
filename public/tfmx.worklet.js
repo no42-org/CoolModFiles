@@ -24,38 +24,78 @@ import createLibtfmx from './libtfmx.worklet.js'
 // Module instance (libtfmx Emscripten Module). Populated asynchronously.
 let M
 let initFailed = false
+let initErrorDetail = ''
 // Live TFX instances. Used by the init .then to drain each instance's
 // pendingPlay, and by the .catch to surface init failure as an 'err'
 // event on any instance that's currently waiting on M.
 const tfxInstances = new Set()
 
-createLibtfmx()
-	.then(mod => {
-		M = mod
-		for (const proc of tfxInstances) {
-			if (proc.pendingPlay) {
-				const val = proc.pendingPlay
-				proc.pendingPlay = null
-				proc._play(val)
-			}
-		}
-	})
-	.catch(e => {
-		console.error('[tfmx-processor] init failed', e)
+let initStarted = false
+
+// Instantiate libtfmx from a WebAssembly.Module compiled on the MAIN thread
+// and handed in via the AudioWorkletNode's processorOptions. Safari's
+// AudioWorkletGlobalScope hangs on emscripten's in-worklet async WASM
+// instantiation (createLibtfmx() never resolves — the processor loads but
+// decodes nothing, a silent "Couldn't play" on Safari while Chromium/Firefox
+// work). Compiling on the main thread and doing only a SYNCHRONOUS
+// `new WebAssembly.Instance` here — via emscripten's instantiateWasm hook —
+// sidesteps it. Runs once, from the first processor's constructor. See
+// ensureTfmx() in lib/audio-player.ts for the main-thread half.
+function initWithModule(wasmModule) {
+	if (initStarted) return
+	initStarted = true
+	if (!wasmModule) {
 		initFailed = true
-		// Surface the failure to any instance that's currently waiting.
-		// Without this the facade would wait for meta/err forever.
-		for (const proc of tfxInstances) {
-			if (proc.pendingPlay) {
-				proc.pendingPlay = null
-				proc.port.postMessage({ cmd: 'err', val: 'ptr' })
+		initErrorDetail = 'no WebAssembly.Module in processorOptions — the main thread must compile and pass it'
+		return
+	}
+	// The Emscripten Module config object is augmented IN PLACE and becomes the
+	// Module, so we capture it (`mod`) and use it once ready. Readiness comes
+	// from the onRuntimeInitialized callback, NOT the MODULARIZE factory
+	// promise: on Safari the runtime fully initialises (onRuntimeInitialized
+	// fires) but the factory promise NEVER resolves inside an AudioWorklet, so
+	// awaiting `createLibtfmx(...).then(...)` hangs forever. onAbort covers the
+	// failure path.
+	const mod = {
+		instantiateWasm: (imports, successCallback) => {
+			const instance = new WebAssembly.Instance(wasmModule, imports)
+			successCallback(instance)
+			return instance.exports
+		},
+		onRuntimeInitialized: () => {
+			M = mod
+			for (const proc of tfxInstances) {
+				if (proc.pendingPlay) {
+					const val = proc.pendingPlay
+					proc.pendingPlay = null
+					proc._play(val)
+				}
 			}
-		}
-	})
+		},
+		onAbort: (what) => {
+			console.error('[tfmx-processor] init aborted', what)
+			initFailed = true
+			initErrorDetail = `libtfmx aborted during init: ${what}`
+			for (const proc of tfxInstances) {
+				if (proc.pendingPlay) {
+					proc.pendingPlay = null
+					proc.port.postMessage({ cmd: 'err', val: 'init', detail: initErrorDetail })
+				}
+			}
+		},
+	}
+	try {
+		createLibtfmx(mod)
+	} catch (e) {
+		console.error('[tfmx-processor] init threw', e)
+		initFailed = true
+		initErrorDetail = `createLibtfmx() threw: ${e && e.stack ? e.stack : (e && e.message ? e.message : String(e))}`
+	}
+}
 
 
 class TFX extends AudioWorkletProcessor {
-	constructor() {
+	constructor(options) {
 		super()
 		this.port.onmessage = this.handleMessage_.bind(this)
 		this.paused = false
@@ -88,11 +128,16 @@ class TFX extends AudioWorkletProcessor {
 		// ready. Drained from the module-level createLibtfmx().then handler.
 		this.pendingPlay = null
 		tfxInstances.add(this)
+		// Kick off libtfmx init with the main-thread-compiled WASM module the
+		// facade passed through processorOptions (see ensureTfmx). No-op after
+		// the first instance.
+		initWithModule(options && options.processorOptions && options.processorOptions.wasmModule)
 	}
 
 	process(inputList, outputList, parameters) {
 		if (!M || !this.decoder || this.paused) return true
 
+		try {
 		const left = outputList[0][0]
 		const right = outputList[0][1]
 		const frames = left.length
@@ -154,6 +199,23 @@ class TFX extends AudioWorkletProcessor {
 		}
 
 		return true
+		} catch (e) {
+			// WebKit/Safari is prone to WASM traps in the AudioWorklet render
+			// path (e.g. a HEAP view detaching after WASM memory growth) that
+			// otherwise die as a SILENT, unhandled processorerror — no console
+			// output anywhere, the worklet just stops. Catch it and post the
+			// real error to the main thread once, so the failure is diagnosable
+			// (and the player can surface a proper error instead of freezing).
+			if (!this.processErrored) {
+				this.processErrored = true
+				this.port.postMessage({
+					cmd: 'err',
+					val: 'process',
+					detail: `process() threw: ${e && e.stack ? e.stack : String(e)}`,
+				})
+			}
+			return true
+		}
 	}
 
 	handleMessage_(msg) {
@@ -250,7 +312,7 @@ class TFX extends AudioWorkletProcessor {
 		// If the engine failed to initialise, fail this play immediately
 		// so the facade's onError → playNext path can recover.
 		if (initFailed) {
-			this.port.postMessage({ cmd: 'err', val: 'ptr' })
+			this.port.postMessage({ cmd: 'err', val: 'init', detail: initErrorDetail || 'wasm init failed (no detail captured)' })
 			return
 		}
 		// Defer until M is ready. createLibtfmx's .then iterates
@@ -264,6 +326,7 @@ class TFX extends AudioWorkletProcessor {
 		// Reset paused flag so a pause→stop→play sequence isn't stuck on silence.
 		this.paused = false
 
+		try {
 		// AudioPlayer.play() posts {tfx, sam?, base, ext?, dns?} as ArrayBuffer
 		// (structured clone preserves the type); we only need the
 		// ArrayBuffer→Uint8Array wrap for MEMFS writeFile. `sam` is absent
@@ -365,6 +428,12 @@ class TFX extends AudioWorkletProcessor {
 		this.formatName = M.ccall('tfx_format_name', 'string', ['number'], [this.decoder]) || ''
 
 		this._meta()
+		} catch (e) {
+			// Surface an unexpected throw in the load path (a decode/ccall
+			// failure) as an err instead of a silent, uncaught exception that
+			// would otherwise die as a processorerror with no diagnostics.
+			this.port.postMessage({ cmd: 'err', val: 'play', detail: `_play threw: ${e && e.stack ? e.stack : String(e)}` })
+		}
 	}
 
 	_stop() {
