@@ -93,6 +93,7 @@ class TFX extends AudioWorkletProcessor {
 	process(inputList, outputList, parameters) {
 		if (!M || !this.decoder || this.paused) return true
 
+		try {
 		const left = outputList[0][0]
 		const right = outputList[0][1]
 		const frames = left.length
@@ -154,6 +155,23 @@ class TFX extends AudioWorkletProcessor {
 		}
 
 		return true
+		} catch (e) {
+			// WebKit/Safari is prone to WASM traps in the AudioWorklet render
+			// path (e.g. a HEAP view detaching after WASM memory growth) that
+			// otherwise die as a SILENT, unhandled processorerror — no console
+			// output anywhere, the worklet just stops. Catch it and post the
+			// real error to the main thread once, so the failure is diagnosable
+			// (and the player can surface a proper error instead of freezing).
+			if (!this.processErrored) {
+				this.processErrored = true
+				this.port.postMessage({
+					cmd: 'err',
+					val: 'process',
+					detail: `process() threw: ${e && e.stack ? e.stack : String(e)}`,
+				})
+			}
+			return true
+		}
 	}
 
 	handleMessage_(msg) {
