@@ -161,13 +161,6 @@ that aren't in this repo. To regenerate or add an icon, use a one-off
 longer a permanent dev dependency since the icons are checked-in
 artifacts.
 
-### Known npm audit advisories
-
-`npm audit` reports two moderate `postcss` advisories pulled in
-transitively through `next`. The suggested "fix" downgrades Next.js
-from 16.x to 9.3.3, so it isn't viable. Upstream-blocked until Next
-ships an updated `postcss` pin; no local action required.
-
 ## License
 
 GNU General Public License[\*](https://www.gnu.org/licenses/gpl.txt)
