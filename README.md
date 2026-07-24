@@ -161,6 +161,18 @@ that aren't in this repo. To regenerate or add an icon, use a one-off
 longer a permanent dev dependency since the icons are checked-in
 artifacts.
 
+## Support
+
+CoolModFiles is free and open source under **GPL-3.0-only**, and it stays that way.
+If it brought back some Amiga nostalgia, a one-time donation helps keep it
+maintained — releases, security fixes, and keeping the module decoders working.
+Nothing is gated.
+
+- **GitHub Sponsors:** https://github.com/sponsors/indigo423
+
+No paid tiers or perks — just my thanks, and a spot on [`SPONSORS.md`](SPONSORS.md)
+if you'd like one. Stars, bug reports, and pull requests help just as much. ❤️
+
 ## License
 
 GNU General Public License[\*](https://www.gnu.org/licenses/gpl.txt)
