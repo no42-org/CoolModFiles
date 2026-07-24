@@ -169,6 +169,7 @@ maintained — releases, security fixes, and keeping the module decoders working
 Nothing is gated.
 
 - **GitHub Sponsors:** https://github.com/sponsors/indigo423
+- **Ko-fi:** https://ko-fi.com/indigo423
 
 No paid tiers or perks — just my thanks, and a spot on [`SPONSORS.md`](SPONSORS.md)
 if you'd like one. Stars, bug reports, and pull requests help just as much. ❤️
