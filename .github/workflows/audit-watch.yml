@@ -1,0 +1,42 @@
+# Watches for the full dependency tree becoming audit-clean again while the
+# CI audit gate is scoped to --omit=dev (GHSA-mh99-v99m-4gvg, see #138).
+# Comments on #138 when the revert can happen; delete this file with the revert.
+name: Audit watch
+
+on:
+  schedule:
+    - cron: '37 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - id: audit
+        run: |
+          if make audit-full; then
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.audit.outputs.clean == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment 138 --repo "$GITHUB_REPOSITORY" --body \
+            "Full-tree \`npm audit --audit-level=high\` is clean — the scoped audit gate can be reverted. Follow the revert steps in the decision record above. This comment repeats weekly until the revert lands."

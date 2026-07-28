@@ -8,7 +8,7 @@ IMAGE_TAG  ?= rc
 ENV_FILE_ARG := $(if $(wildcard .env),--env-file .env,)
 LIBRARY_MOUNT_ARG := $(if $(wildcard ./mods),-v $(CURDIR)/mods:/library:ro -e LIBRARY_ROOT=/library,)
 
-.PHONY: help install dev lint typecheck audit build test e2e verify format format-check image run clean
+.PHONY: help install dev lint typecheck audit audit-full build test e2e verify format format-check image run clean
 
 help: ## Show this help
 	@awk 'BEGIN {FS=":.*?## "} /^[a-zA-Z_-]+:.*?## /{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -29,6 +29,9 @@ typecheck: install ## Run TypeScript compiler in check-only mode
 # fix compatible with eslint 9 / eslint-config-next's minimatch@3 chain.
 audit: install ## Run npm audit on production deps (fails on high or critical)
 	npm audit --omit=dev --audit-level=high
+
+audit-full: install ## Run npm audit on the full tree incl. dev deps (watched by audit-watch.yml, see #138)
+	npm audit --audit-level=high
 
 build: install ## Build the Next.js app
 	npm run build
