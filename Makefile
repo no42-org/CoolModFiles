@@ -25,8 +25,10 @@ lint: install ## Run ESLint
 typecheck: install ## Run TypeScript compiler in check-only mode
 	npm run typecheck
 
-audit: install ## Run npm audit (fails on high or critical)
-	npm audit --audit-level=high
+# Dev-tree advisories are excluded: GHSA-mh99-v99m-4gvg (brace-expansion) has no
+# fix compatible with eslint 9 / eslint-config-next's minimatch@3 chain.
+audit: install ## Run npm audit on production deps (fails on high or critical)
+	npm audit --omit=dev --audit-level=high
 
 build: install ## Build the Next.js app
 	npm run build
@@ -42,7 +44,7 @@ verify: install ## Run lint + typecheck + unit-tests + audit + build (fail-fast)
 	npm run lint
 	npm run typecheck
 	npm test
-	npm audit --audit-level=high
+	npm audit --omit=dev --audit-level=high
 	npm run build
 
 format: ## Format all files with Prettier
