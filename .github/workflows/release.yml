@@ -65,7 +65,7 @@ jobs:
           # under us. Dependabot also tracks `cosign-release:` updates.
           cosign-release: v3.0.6
 
-      - uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c  # v4.5.2
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
