@@ -1,3 +1,7 @@
+/*
+ * Copyright 2026 Ronny Trommer <ronny@no42.org>
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
 import React from "react";
 import Head from "next/head";
 import type { GetServerSideProps } from "next";
@@ -5,6 +9,7 @@ import type { GetServerSideProps } from "next";
 import Player from "../components/Player";
 import Footer from "../components/Footer";
 import { modArchive, library, type Source } from "../components/sources";
+import { getLatestId } from "../lib/modarchive/latest-id";
 import {
   getRandomInt,
   getRandomFromArray,
@@ -111,17 +116,7 @@ export const getServerSideProps: GetServerSideProps<IndexProps> = async ({
     backSideContent = "";
   }
 
-  let latestId: number;
-  try {
-    const rss_req = await fetch(
-      "https://modarchive.org/rss.php?request=uploads",
-      { method: "GET" }
-    );
-    const rss = await rss_req.text();
-    latestId = Number(rss.split("downloads.php?moduleid=")[1].split("#")[0]);
-  } catch {
-    latestId = RANDOM_MAX;
-  }
+  const latestId = getLatestId(RANDOM_MAX);
 
   let initialSource: Source | null = null;
   if (query.source === "modarchive" && query.id) {
