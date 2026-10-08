@@ -8,12 +8,15 @@
 // without poisoning the cache. No retries — failures are surfaced
 // immediately so the chart pane can offer a Retry button.
 
-const USER_AGENT =
-  "CoolModFiles (+https://github.com/no42-org/CoolModFiles)";
+const USER_AGENT = "CoolModFiles (+https://github.com/no42-org/CoolModFiles)";
 
-export async function fetchHtml(url: string): Promise<string> {
+export async function fetchHtml(
+  url: string,
+  signal?: AbortSignal
+): Promise<string> {
   const res = await fetch(url, {
     method: "GET",
+    signal,
     redirect: "follow",
     headers: {
       "User-Agent": USER_AGENT,
