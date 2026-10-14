@@ -45,7 +45,7 @@
     "sass": "^1.105.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^26.6.4",
     "@types/react": "^19.2.18",
