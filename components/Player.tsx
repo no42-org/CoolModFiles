@@ -507,83 +507,6 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const volumeMuteKey = useKeyPress("x");
   const amigaKey = useKeyPress("m");
 
-  React.useEffect(() => {
-    if (spaceKey || enterKey) togglePlay();
-    if (shiftKey) changeSize();
-    if (helpKey || quitKey) openDrawerToTab("help");
-    if (repeatKey && player) {
-      showToast(`repeat ${!repeat ? "on" : "off"}`);
-      player.setRepeatCount(!repeat ? -1 : 0);
-      setRepeat(!repeat);
-    }
-    if (downloadKey) downloadTrack();
-    if (embedKey) copyEmbed();
-    if (upKey || nextKey || nextKeyVim) playNext();
-    if (downKey || backKey || backKeyVim) playPrevious();
-    if ((rightKey || rightKeyVim) && isPlay && player)
-      player.seek((player.currentTime || 0) + 5);
-    if ((leftKey || leftKeyVim) && isPlay && player)
-      player.seek((player.currentTime || 0) - 5);
-    if (volumeUpKey && player) {
-      const next = Math.min(100, volume + 5);
-      setVolume(next);
-      player.setVol(next / 100);
-    }
-    if (volumeDownKey && player) {
-      const next = Math.max(0, volume - 5);
-      setVolume(next);
-      player.setVol(next / 100);
-    }
-    if (volumeMuteKey) toggleMute();
-    if (amigaKey) {
-      // Mirror the SoundPane's per-control gate (design.md D9): the
-      // Amiga emulation toggle is a libopenmpt ctl forwarder that has
-      // no analog in either tfmx or ahx. Without this gate the `m`
-      // shortcut would still cycle the model + toast + write
-      // localStorage while the SoundPane shows the toggle as disabled
-      // — UI and behaviour disagreeing. Pre-track (`activeEngine`
-      // still undefined) stays interactive so users can pre-configure
-      // their default.
-      const nonModActive =
-        activeEngine !== undefined && activeEngine !== "libopenmpt";
-      if (nonModActive) {
-        showToast("Amiga emulation only affects MOD tracks");
-      } else {
-        // Cycle a1200 -> a500 -> off -> a1200. Toast confirms each press.
-        const order: AmigaModel[] = ["a1200", "a500", "off"];
-        const idx = order.indexOf(amigaModel);
-        const next = order[(idx + 1) % order.length];
-        setAmigaModel(next);
-        const label =
-          next === "off" ? "Off" : next === "a500" ? "A500" : "A1200";
-        showToast(`Amiga: ${label}`);
-      }
-    }
-  }, [
-    spaceKey,
-    enterKey,
-    shiftKey,
-    helpKey,
-    quitKey,
-    repeatKey,
-    downloadKey,
-    embedKey,
-    upKey,
-    nextKey,
-    nextKeyVim,
-    downKey,
-    backKey,
-    backKeyVim,
-    rightKey,
-    rightKeyVim,
-    leftKey,
-    leftKeyVim,
-    volumeUpKey,
-    volumeDownKey,
-    volumeMuteKey,
-    amigaKey,
-  ]);
-
   useInterval(
     () => {
       if (!player) return;
@@ -594,7 +517,15 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     isPlay ? 500 : null
   );
 
+  // The player is created once on mount; it only needs the initial
+  // audio settings, so they are read through an effect event.
+  const readInitialAudioSettings = React.useEffectEvent(() => ({
+    repeat,
+    stereoSeparation,
+    volume,
+  }));
   React.useEffect(() => {
+    const initial = readInitialAudioSettings();
     const ctx =
       (typeof window !== "undefined" &&
         window.__chiptunePrewarmedAudioContext) ||
@@ -612,14 +543,14 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     // the TFMX engine on first TFMX play; MOD cold-start is unchanged.
     const jsPlayer = new AudioPlayer({
       context: ctx,
-      repeatCount: repeat ? -1 : 0,
-      stereoSeparation,
+      repeatCount: initial.repeat ? -1 : 0,
+      stereoSeparation: initial.stereoSeparation,
     });
     // The inner ChiptuneJsPlayer only auto-connects gain -> destination
     // when it created its own context. When we hand it a prewarmed
     // context, the caller owns routing.
     if (ctx) jsPlayer.gain.connect(jsPlayer.context.destination);
-    jsPlayer.setVol(volume / 100);
+    jsPlayer.setVol(initial.volume / 100);
     jsPlayer.onInitialized(() => setPlayerReady(true));
     jsPlayer.onMetadata((meta) => {
       setMetaData({
@@ -729,12 +660,6 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   React.useEffect(() => {
     localStorage.setItem("display.filenameStyle", filenameStyle);
   }, [filenameStyle]);
-
-  React.useEffect(() => {
-    if (player && playerReady) {
-      playFromSource(playingSource);
-    }
-  }, [player, playerReady]);
 
   // Probe whether the server has LIBRARY_ROOT configured. The Library
   // tab is hidden in the drawer when the API returns 404.
@@ -847,6 +772,9 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
     // Uses performance.now() (monotonic) rather than Date.now() so NTP
     // / manual clock adjustments can't spuriously trip or clear it.
     {
+      // playFromSource runs only from effects and event handlers, never
+      // during render.
+      // eslint-disable-next-line react-hooks/purity
       const now = performance.now();
       const burst = errorBurstRef.current;
       if (now - burst.firstAt > 2000) {
@@ -1162,6 +1090,97 @@ function Player({ initialSource, backSideContent, latestId }: PlayerProps) {
   const changeSize = () => {
     setSize(size === "big" ? "small" : "big");
   };
+
+  // Effect event: reads the latest state and handlers on each keypress
+  // without re-running the effect when that state changes.
+  const handleShortcutKeys = React.useEffectEvent(() => {
+    if (spaceKey || enterKey) togglePlay();
+    if (shiftKey) changeSize();
+    if (helpKey || quitKey) openDrawerToTab("help");
+    if (repeatKey && player) {
+      showToast(`repeat ${!repeat ? "on" : "off"}`);
+      player.setRepeatCount(!repeat ? -1 : 0);
+      setRepeat(!repeat);
+    }
+    if (downloadKey) downloadTrack();
+    if (embedKey) copyEmbed();
+    if (upKey || nextKey || nextKeyVim) playNext();
+    if (downKey || backKey || backKeyVim) playPrevious();
+    if ((rightKey || rightKeyVim) && isPlay && player)
+      player.seek((player.currentTime || 0) + 5);
+    if ((leftKey || leftKeyVim) && isPlay && player)
+      player.seek((player.currentTime || 0) - 5);
+    if (volumeUpKey && player) {
+      const next = Math.min(100, volume + 5);
+      setVolume(next);
+      player.setVol(next / 100);
+    }
+    if (volumeDownKey && player) {
+      const next = Math.max(0, volume - 5);
+      setVolume(next);
+      player.setVol(next / 100);
+    }
+    if (volumeMuteKey) toggleMute();
+    if (amigaKey) {
+      // Mirror the SoundPane's per-control gate (design.md D9): the
+      // Amiga emulation toggle is a libopenmpt ctl forwarder that has
+      // no analog in either tfmx or ahx. Without this gate the `m`
+      // shortcut would still cycle the model + toast + write
+      // localStorage while the SoundPane shows the toggle as disabled
+      // — UI and behaviour disagreeing. Pre-track (`activeEngine`
+      // still undefined) stays interactive so users can pre-configure
+      // their default.
+      const nonModActive =
+        activeEngine !== undefined && activeEngine !== "libopenmpt";
+      if (nonModActive) {
+        showToast("Amiga emulation only affects MOD tracks");
+      } else {
+        // Cycle a1200 -> a500 -> off -> a1200. Toast confirms each press.
+        const order: AmigaModel[] = ["a1200", "a500", "off"];
+        const idx = order.indexOf(amigaModel);
+        const next = order[(idx + 1) % order.length];
+        setAmigaModel(next);
+        const label =
+          next === "off" ? "Off" : next === "a500" ? "A500" : "A1200";
+        showToast(`Amiga: ${label}`);
+      }
+    }
+  });
+  React.useEffect(() => {
+    handleShortcutKeys();
+  }, [
+    spaceKey,
+    enterKey,
+    shiftKey,
+    helpKey,
+    quitKey,
+    repeatKey,
+    downloadKey,
+    embedKey,
+    upKey,
+    nextKey,
+    nextKeyVim,
+    downKey,
+    backKey,
+    backKeyVim,
+    rightKey,
+    rightKeyVim,
+    leftKey,
+    leftKeyVim,
+    volumeUpKey,
+    volumeDownKey,
+    volumeMuteKey,
+    amigaKey,
+  ]);
+
+  // Auto-play once the player is ready. Must not re-fire when the
+  // source changes, so the source is read through an effect event.
+  const playCurrentSource = React.useEffectEvent(() => {
+    playFromSource(playingSource);
+  });
+  React.useEffect(() => {
+    if (player && playerReady) playCurrentSource();
+  }, [player, playerReady]);
 
   const updateFavoriteModsRuntime = (newFavoriteModsArray: FavoriteTrack[]) => {
     setFavoriteModsRuntime(newFavoriteModsArray);

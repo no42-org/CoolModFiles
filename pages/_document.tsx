@@ -104,7 +104,9 @@ class MyDocument extends Document {
           <meta name="msapplication-TileColor" content="#000000" />
           <meta name="msapplication-TileImage" content="/favicon-144.png" />
           <meta name="msapplication-config" content="/browserconfig.xml" />
+          {/* eslint-disable-next-line @next/next/no-sync-scripts -- must register its gesture listener before the first click (#11) */}
           <script src="/audio-prewarm.js"></script>
+          {/* eslint-disable-next-line @next/next/no-sync-scripts -- module scripts are deferred by the browser */}
           <script type="module" src="/chiptune3.js"></script>
         </Head>
         <body>

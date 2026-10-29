@@ -110,8 +110,9 @@ function SourceDrawer({
   soundProps,
 }: SourceDrawerProps) {
   const escKey = useKeyPress("Escape");
+  const closeOnEscape = React.useEffectEvent(() => onClose());
   React.useEffect(() => {
-    if (escKey && open) onClose();
+    if (escKey && open) closeOnEscape();
   }, [escKey, open]);
 
   const drawerClass = [
