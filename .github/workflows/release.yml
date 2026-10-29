@@ -14,7 +14,7 @@ env:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Job-scoped permissions: any future job in this workflow (e.g. a
     # notification or SBOM uploader) must opt-in to id-token minting
     # rather than inherit it.

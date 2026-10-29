@@ -198,6 +198,7 @@ function PlayerBig({
             </div>
           </div>
           <div className={styles.discRow}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- local animated GIF; next/image does not optimize GIFs */}
             <img
               className={styles.banner}
               src={`/images/disc_${isPlay ? "anim" : "idle"}.gif`}

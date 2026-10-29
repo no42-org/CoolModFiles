@@ -50,8 +50,13 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
   React.useEffect(() => {
     setTitle(sharedTitle);
   }, [sharedTitle]);
+  // Auto-play once the player is ready. Must not re-fire when the
+  // source changes, so the source is read through an effect event.
+  const playInitialSource = React.useEffectEvent(() => {
+    if (initialSource) playFromSource(initialSource);
+  });
   React.useEffect(() => {
-    if (player && playerReady && initialSource) playFromSource(initialSource);
+    if (player && playerReady) playInitialSource();
   }, [player, playerReady]);
 
   const initPlayer = () => {
@@ -126,6 +131,7 @@ function EmbedPlayer({ initialSource, sharedTitle }: EmbedPlayerProps) {
     <div className={styles.player}>
       <div className={styles.header}>
         <div className={styles.imgWrapper}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- local animated GIF; next/image does not optimize GIFs */}
           <img
             className={styles.banner}
             src={`/images/disc_${isPlay ? "anim" : "idle"}.gif`}
