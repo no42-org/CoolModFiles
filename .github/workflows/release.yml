@@ -1,3 +1,5 @@
+# Copyright 2026 Ronny Trommer <ronny@no42.org>
+# SPDX-License-Identifier: GPL-3.0-only
 name: Release
 
 on:
@@ -13,19 +15,11 @@ env:
   IMAGE_NAME: ghcr.io/no42-org/coolmodfiles
 
 jobs:
-  release:
+  verify:
     runs-on: ubuntu-26.04
-    # Job-scoped permissions: any future job in this workflow (e.g. a
-    # notification or SBOM uploader) must opt-in to id-token minting
-    # rather than inherit it.
+    timeout-minutes: 20
     permissions:
-      contents: write
-      packages: write
-      # Required for cosign's keyless signing flow: the runner requests
-      # an OIDC token from GitHub which Sigstore's Fulcio exchanges for
-      # a short-lived signing certificate. No long-lived keys are
-      # stored in the repo or in GitHub Secrets.
-      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -54,7 +48,92 @@ jobs:
 
       - run: make verify
 
-      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
+  # Each platform builds natively on its own runner and pushes an
+  # untagged image by digest. Emulated arm64 builds under QEMU hung
+  # intermittently in `npm ci` (SIGILL) for up to 6 h (#242).
+  build:
+    needs: verify
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-26.04
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-26.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            APP_VERSION=${{ github.ref_name }}
+          cache-from: type=gha,scope=image-${{ matrix.arch }}
+          cache-to: type=gha,scope=image-${{ matrix.arch }},mode=max
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/digests"
+          touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Combines the per-platform digests into one multi-arch index, tags
+  # it, signs it and drafts the release.
+  publish:
+    needs: build
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    # Job-scoped permissions: any future job in this workflow (e.g. a
+    # notification or SBOM uploader) must opt-in to id-token minting
+    # rather than inherit it.
+    permissions:
+      contents: write
+      packages: write
+      # Required for cosign's keyless signing flow: the runner requests
+      # an OIDC token from GitHub which Sigstore's Fulcio exchanges for
+      # a short-lived signing certificate. No long-lived keys are
+      # stored in the repo or in GitHub Secrets.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
 
@@ -80,23 +159,24 @@ jobs:
             type=semver,pattern=v{{major}}.{{minor}}
             type=raw,value=latest
 
-      - id: build
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
-        with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            APP_VERSION=${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Create and push multi-arch index
+        id: index
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "${DOCKER_METADATA_OUTPUT_JSON}") \
+            $(printf "${IMAGE_NAME}@sha256:%s " *)
+          digest=$(docker buildx imagetools inspect "${IMAGE_NAME}:${VERSION}" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
 
       - name: Sign image with cosign (keyless / OIDC)
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
-          DIGEST: ${{ steps.build.outputs.digest }}
+          DIGEST: ${{ steps.index.outputs.digest }}
         run: |
           set -euo pipefail
           # Fail fast on an empty tag list — without this guard, a
@@ -125,6 +205,7 @@ jobs:
       - name: Create GitHub Release (draft, auto-generated notes)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
