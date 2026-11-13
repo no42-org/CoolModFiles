@@ -82,6 +82,23 @@ test("spectrum analyzer: layout, idle state, canvas reacts to audio data", async
   await expect(canvas).toHaveCount(1);
   await expect(canvas).toBeVisible();
 
+  // The player card plays a 1 s `bounceIn` keyframe animation on mount
+  // (scale 0.3 → 1.05 → 0.9 → 1). `toBeVisible()` resolves on its first
+  // frame, and boundingBox() includes the transform, so two consecutive
+  // reads taken while the card is still scaling come from different
+  // scale factors. On a loaded CI runner that produced a canvas "left
+  // of" the disc or vertical centres 20+ px apart. Wait for every
+  // animation on the canvas's ancestor chain to finish before measuring.
+  await canvas.evaluate((el) => {
+    const pending: Promise<unknown>[] = [];
+    for (let node: Element | null = el; node; node = node.parentElement) {
+      for (const a of node.getAnimations()) {
+        pending.push(a.finished.catch(() => undefined));
+      }
+    }
+    return Promise.all(pending);
+  });
+
   // 4) Layout assertion: disc is to the left of the analyzer canvas,
   //    both share the same row (top edges within a few px of each
   //    other given the align-items: center).
@@ -152,30 +169,32 @@ test("spectrum analyzer: layout, idle state, canvas reacts to audio data", async
     };
   });
 
-  // Give a few RAF ticks for the canvas to redraw with synthetic data.
-  await page.waitForTimeout(500);
-
   // 7) Verify the canvas now has non-background pixels in the lower
   //    portion (where tall bars from synthetic data should render).
-  const hasBarsPainted = await canvas.evaluate((el) => {
-    const c = el as HTMLCanvasElement;
-    const ctx = c.getContext("2d");
-    if (!ctx) return { painted: false, samples: [] as Array<[number, number, number]> };
-    // Sample 5 horizontal points near the bottom of the canvas.
-    const samples: Array<[number, number, number]> = [];
-    const y = c.height - 4;
-    let painted = false;
-    for (let i = 0; i < 5; i++) {
-      const x = Math.floor((i + 1) * c.width / 6);
-      const d = ctx.getImageData(x, y, 1, 1).data;
-      samples.push([d[0], d[1], d[2]]);
-      // A painted bar pixel has at least one channel > 60 (background
-      // is ~10/10/10).
-      if (d[0] > 60 || d[1] > 60 || d[2] > 60) painted = true;
-    }
-    return { painted, samples };
-  });
-  expect(hasBarsPainted.painted).toBe(true);
+  //    Poll instead of a fixed sleep: the random track is usually still
+  //    loading at this point, and on a slow CI runner the engine's wasm
+  //    init can starve requestAnimationFrame for well over 500 ms, so a
+  //    fixed wait saw the stale pre-injection frame. The override stays
+  //    in place, so the first RAF tick that runs paints the bars.
+  const sampleBarsPainted = () =>
+    canvas.evaluate((el) => {
+      const c = el as HTMLCanvasElement;
+      const ctx = c.getContext("2d");
+      if (!ctx) return false;
+      // Sample 5 horizontal points near the bottom of the canvas.
+      const y = c.height - 4;
+      for (let i = 0; i < 5; i++) {
+        const x = Math.floor((i + 1) * c.width / 6);
+        const d = ctx.getImageData(x, y, 1, 1).data;
+        // A painted bar pixel has at least one channel > 60 (background
+        // is ~10/10/10).
+        if (d[0] > 60 || d[1] > 60 || d[2] > 60) return true;
+      }
+      return false;
+    });
+  await expect
+    .poll(sampleBarsPainted, { timeout: 30_000, intervals: [100, 250, 500] })
+    .toBe(true);
 
   await page.screenshot({
     path: path.join(SHOTS, "02-bars-with-synthetic-data.png"),
